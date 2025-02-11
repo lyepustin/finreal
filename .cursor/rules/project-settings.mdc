@@ -1,0 +1,5 @@
+---
+description: env
+globs: 
+---
+always run commands with pnpm for windows powershell
