@@ -1,0 +1,8 @@
+npx sv create .
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+pnpm run dev --open
+https://next.shadcn-svelte.com/docs/installation/vite
+pnpm dlx sv@0.6.18 add tailwindcss
+pnpm i
+(create files)
+pnpm dlx shadcn-svelte@next init
