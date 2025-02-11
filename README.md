@@ -1,0 +1,2 @@
+# finreal
+simplified financial management
