@@ -6,6 +6,7 @@ globs:
 description: env
 globs: 
 ---
+always return svelte5 commands
 always run commands with pnpm for windows powershell
 database should be supabase
 app focused to be used through the browser of a mobile phone (css)
