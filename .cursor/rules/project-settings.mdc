@@ -12,3 +12,4 @@ database should be supabase
 app focused to be used through the browser of a mobile phone (css)
 components to use from shadcn-svelte
 there is no need to check in every route the autentication because we already doing it in /src/routes/+layout.svelte
+you can use any or none like a type for typescript
