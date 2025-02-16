@@ -1,15 +1,29 @@
 <script lang="ts">
     import type { PageData } from './$types'
-    import { transactions } from '$lib/stores/transactions'
+    import { transactionsManager } from '$lib/stores/transactions'
     import { enhance } from '$app/forms'
     import { goto } from '$app/navigation'
 
     let { data } = $props<{ data: PageData }>();
 
+    // Initialize the data manager with the server data
+    $effect(() => {
+        if (data) {
+            transactionsManager.refresh();
+        }
+    });
+
+    let transactionData = $state<typeof data | null>(null);
+    
+    // Subscribe to the store
+    transactionsManager.subscribe((value) => {
+        transactionData = value;
+    });
+
     const { transactionsList, totalPages, currentPage } = $derived({
-        transactionsList: data.transactions,
-        totalPages: data.totalPages,
-        currentPage: data.currentPage
+        transactionsList: transactionData?.transactions ?? [],
+        totalPages: transactionData?.totalPages ?? 0,
+        currentPage: transactionData?.currentPage ?? 1
     });
     $inspect(transactionsList)
     let editingTransaction = $state<number | null>(null);
@@ -21,16 +35,8 @@
     }
 
     async function saveDescription(transaction: any) {
-        await transactions.updateTransactionDescription(transaction.id, editDescription);
+        await transactionsManager.updateTransactionDescription(transaction.id, editDescription);
         editingTransaction = null;
-        
-        // Invalidate the data to refresh from server
-        await fetch('/transactions', {
-            method: 'GET',
-            headers: {
-                'x-sveltekit-invalidate': 'supabase:transactions'
-            }
-        });
     }
 
     function focusOnElement(node: HTMLElement) {
@@ -38,8 +44,9 @@
         return {};
     }
 
-    function changePage(page: number) {
-        goto(`?page=${page}`);
+    async function changePage(page: number) {
+        await goto(`?page=${page}`);
+        await transactionsManager.refresh();
     }
 
     function handleKeydown(e: KeyboardEvent) {
@@ -48,6 +55,47 @@
 </script>
 
 <div class="transactions-container">
+    {#if totalPages > 1}
+        <div class="pagination">
+            <button 
+                disabled={currentPage === 1}
+                onclick={() => changePage(1)}
+            >
+                1
+            </button>
+            {#if currentPage > 3}
+                <span>...</span>
+            {/if}
+            <button 
+                disabled={currentPage === 1}
+                onclick={() => changePage(currentPage - 1)}
+            >
+                Previous
+            </button>
+            <button 
+                class:active={currentPage === currentPage}
+                onclick={() => changePage(currentPage)}
+            >
+                {currentPage}
+            </button>
+            <button 
+                disabled={currentPage === totalPages}
+                onclick={() => changePage(currentPage + 1)}
+            >
+                Next
+            </button>
+            {#if currentPage < totalPages - 2}
+                <span>...</span>
+            {/if}
+            <button 
+                disabled={currentPage === totalPages}
+                onclick={() => changePage(totalPages)}
+            >
+                {totalPages}
+            </button>
+        </div>
+    {/if}
+
     <div class="transactions">
         {#each transactionsList as transaction}
             <div class="transaction-wrapper">
@@ -124,46 +172,6 @@
         {/each}
     </div>
 
-    {#if totalPages > 1}
-        <div class="pagination">
-            <button 
-                disabled={currentPage === 1}
-                onclick={() => changePage(1)}
-            >
-                1
-            </button>
-            {#if currentPage > 3}
-                <span>...</span>
-            {/if}
-            <button 
-                disabled={currentPage === 1}
-                onclick={() => changePage(currentPage - 1)}
-            >
-                Previous
-            </button>
-            <button 
-                class:active={currentPage === currentPage}
-                onclick={() => changePage(currentPage)}
-            >
-                {currentPage}
-            </button>
-            <button 
-                disabled={currentPage === totalPages}
-                onclick={() => changePage(currentPage + 1)}
-            >
-                Next
-            </button>
-            {#if currentPage < totalPages - 2}
-                <span>...</span>
-            {/if}
-            <button 
-                disabled={currentPage === totalPages}
-                onclick={() => changePage(totalPages)}
-            >
-                {totalPages}
-            </button>
-        </div>
-    {/if}
 </div>
 
 <style>
