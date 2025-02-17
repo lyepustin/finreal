@@ -6,3 +6,4 @@ pnpm dlx sv@0.6.18 add tailwindcss
 pnpm i
 (create files)
 pnpm dlx shadcn-svelte@next init
+https://supabase.com/docs/guides/auth/server-side/sveltekit

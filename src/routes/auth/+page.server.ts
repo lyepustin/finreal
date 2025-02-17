@@ -1,4 +1,4 @@
-import { redirect } from '@sveltejs/kit'
+import { redirect, fail } from '@sveltejs/kit'
 
 import type { Actions } from './$types'
 
@@ -10,10 +10,15 @@ export const actions: Actions = {
 
     const { error } = await supabase.auth.signUp({ email, password })
     if (error) {
-      console.error(error)
-      redirect(303, '/auth/error')
-    } else {
-      redirect(303, '/')
+      return fail(400, {
+        error: error.message,
+        email
+      })
+    }
+
+    return {
+      success: true,
+      message: 'Please check your email for a confirmation link.'
     }
   },
   login: async ({ request, locals: { supabase } }) => {
@@ -23,10 +28,12 @@ export const actions: Actions = {
 
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) {
-      console.error(error)
-      redirect(303, '/auth/error')
-    } else {
-      redirect(303, '/private')
+      return fail(400, {
+        error: error.message,
+        email
+      })
     }
+
+    throw redirect(303, '/private')
   },
 }
