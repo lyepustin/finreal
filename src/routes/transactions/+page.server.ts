@@ -2,7 +2,8 @@ import type { PageServerLoad, Actions } from './$types'
 import type { Transaction } from '$lib/types'
 import { measureAsync } from '$lib/utils/performance';
 
-const TRANSACTIONS_QUERY = `
+// Centralize the query fields for reuse and maintainability
+const TRANSACTION_SELECT = `
     id,
     uuid,
     operation_date,
@@ -37,249 +38,116 @@ const TRANSACTIONS_QUERY = `
     )
 `;
 
+const PAGE_SIZE = 20;
+const DEFAULT_FROM_DATE = '2024-12-01';
+
 export const load: PageServerLoad = async ({ depends, locals: { supabase } }) => {
     depends('supabase:transactions')
 
     return await measureAsync('transactions-page-load', async () => {
-        // Fetch all categories first
-        const { data: allCategories } = await measureAsync('fetch-categories', () => 
+        const [{ data: categories }, { data: transactions, count }] = await Promise.all([
             supabase
                 .from('categories')
-                .select(`
-                    id,
-                    name,
-                    subcategories (
-                        id,
-                        category_id,
-                        name
-                    )
-                `)
-                .order('name')
-        );
+                .select('id, name, subcategories (id, category_id, name)')
+                .order('name'),
+            supabase
+                .from('transactions')
+                .select(TRANSACTION_SELECT, { count: 'exact' })
+                .gte('operation_date', DEFAULT_FROM_DATE)
+                .order('operation_date', { ascending: false })
+                .range(0, PAGE_SIZE - 1)
+        ]);
 
-        // Default values if no filters are provided
-        const page = 1;
-        const pageSize = 20;
-        const offset = (page - 1) * pageSize;
-
-        // Get initial data without filters
-        const query = supabase.from('transactions').select(TRANSACTIONS_QUERY);
-        const countQuery = supabase.from('transactions').select('*', { count: 'exact', head: true });
-
-        const [{ data: transactions, error }, { count, error: countError }] = await measureAsync(
-            'fetch-transactions-and-count',
-            () => Promise.all([
-                query.order('operation_date', { ascending: false }).range(offset, offset + pageSize - 1),
-                countQuery
-            ])
-        );
-
-        if (error || countError) {
-            console.error('Error fetching transactions:', error || countError)
-            return { transactions: [], totalPages: 0, currentPage: 1, categories: [] }
-        }
-
-        const totalPages = count ? Math.ceil(count / pageSize) : 0;
-
-        return { 
-            transactions: transactions as Transaction[] ?? [], 
-            totalPages,
-            currentPage: page,
-            categories: allCategories ?? []
-        }
+        return {
+            transactions: transactions as Transaction[] ?? [],
+            totalPages: Math.ceil((count ?? 0) / PAGE_SIZE),
+            currentPage: 1,
+            categories: categories ?? [],
+            defaultFromDate: DEFAULT_FROM_DATE
+        };
     });
+}
+
+interface FilterOptions {
+    type: { value: 'all' | 'income' | 'expense' };
+    categories: { selected: string[]; isNegative: boolean };
+    subcategories: { selected: string[] };
+    dateRange: { from?: string; to?: string };
+    search: { value: string; isNegative: boolean };
 }
 
 export const actions = {
     default: async ({ request, locals: { supabase } }) => {
         return await measureAsync('transactions-filter-action', async () => {
             const formData = await request.formData();
-            const filtersJson = formData.get('filters')?.toString() || '{}';
-            const page = parseInt(formData.get('page')?.toString() || '1');
-            const filters = JSON.parse(filtersJson);
-            const pageSize = 20;
-            const offset = (page - 1) * pageSize;
+            const filters: FilterOptions = JSON.parse(formData.get('filters')?.toString() || '{}');
+            const page = Math.max(1, parseInt(formData.get('page')?.toString() || '1'));
+            const offset = (page - 1) * PAGE_SIZE;
 
-            // Build the transaction categories query to filter by amount
-            const { data: allTransactions, error: tcError } = await measureAsync(
-                'fetch-filtered-transactions',
-                async () => {
-                    let transactionQuery = supabase
-                        .from('transactions')
-                        .select(`
-                            id,
-                            operation_date,
-                            transaction_categories!inner (
-                                transaction_id,
-                                category_id,
-                                subcategory_id,
-                                amount
-                            )
-                        `)
-                        .order('operation_date', { ascending: false });
+            // Start with base query
+            let query = supabase
+                .from('transactions')
+                .select(TRANSACTION_SELECT, { count: 'exact' });
 
-                    // Apply type filter
-                    if (filters.type.value !== 'all') {
-                        if (filters.type.value === 'income') {
-                            transactionQuery = filters.type.isNegative ?
-                                transactionQuery.lt('transaction_categories.amount', 0) :
-                                transactionQuery.gte('transaction_categories.amount', 0);
-                        } else {
-                            transactionQuery = filters.type.isNegative ?
-                                transactionQuery.gte('transaction_categories.amount', 0) :
-                                transactionQuery.lt('transaction_categories.amount', 0);
-                        }
-                    }
-
-                    return await transactionQuery;
-                }
-            );
-            
-            let matchingIds: number[] = [];
-
-            if (allTransactions?.length) {
-                // Create a map of transaction IDs to their categories, preserving order
-                const transactionCategoriesMap = new Map<number, Set<number>>();
-                const transactionSubcategoriesMap = new Map<number, Set<number>>();
-                const seenTransactions = new Set<number>();
-                
-                // Process transactions in order, keeping only the first occurrence
-                allTransactions.forEach(t => {
-                    const transactionId = t.id;
-                    
-                    // Skip if we've already processed this transaction
-                    if (seenTransactions.has(transactionId)) return;
-                    seenTransactions.add(transactionId);
-                    
-                    // Process all categories for this transaction
-                    t.transaction_categories.forEach(tc => {
-                        // Handle categories
-                        if (!transactionCategoriesMap.has(transactionId)) {
-                            transactionCategoriesMap.set(transactionId, new Set());
-                        }
-                        if (tc.category_id) {
-                            transactionCategoriesMap.get(transactionId)?.add(tc.category_id);
-                        }
-
-                        // Handle subcategories
-                        if (!transactionSubcategoriesMap.has(transactionId)) {
-                            transactionSubcategoriesMap.set(transactionId, new Set());
-                        }
-                        if (tc.subcategory_id) {
-                            transactionSubcategoriesMap.get(transactionId)?.add(tc.subcategory_id);
-                        }
-                    });
-                });
-
-                // Initialize matchingIds with all transactions
-                matchingIds = Array.from(seenTransactions);
-
-                // Filter by categories if selected
-                if (filters.categories.selected.length > 0) {
-                    const selectedCategories = new Set(filters.categories.selected.map(Number));
-
-                    if (filters.categories.isNegative) {
-                        // For negative filter, we want transactions that DON'T have ANY of the selected categories
-                        matchingIds = matchingIds.filter(transactionId => {
-                            const categories = transactionCategoriesMap.get(transactionId) || new Set();
-                            // Check if none of the transaction's categories are in the selected categories
-                            return !Array.from(categories).some(cat => selectedCategories.has(cat));
-                        });
-                    } else {
-                        // For positive filter, we want transactions that have ANY of the selected categories
-                        matchingIds = matchingIds.filter(transactionId => {
-                            const categories = transactionCategoriesMap.get(transactionId) || new Set();
-                            return Array.from(categories).some(cat => selectedCategories.has(cat));
-                        });
-                    }
-                }
-
-                // Filter by subcategories if selected
-                if (filters.subcategories.selected.length > 0) {
-                    const selectedSubcategories = new Set(filters.subcategories.selected.map(Number));
-
-                    if (filters.subcategories.isNegative) {
-                        // For negative filter, we want transactions that DON'T have ANY of the selected subcategories
-                        matchingIds = matchingIds.filter(transactionId => {
-                            const subcategories = transactionSubcategoriesMap.get(transactionId) || new Set();
-                            return !Array.from(subcategories).some(sub => selectedSubcategories.has(sub));
-                        });
-                    } else {
-                        // For positive filter, we want transactions that have ANY of the selected subcategories
-                        matchingIds = matchingIds.filter(transactionId => {
-                            const subcategories = transactionSubcategoriesMap.get(transactionId) || new Set();
-                            return Array.from(subcategories).some(sub => selectedSubcategories.has(sub));
-                        });
-                    }
-                }
+            // Apply date range filter first (most restrictive)
+            const fromDate = filters.dateRange.from || DEFAULT_FROM_DATE;
+            query = query.gte('operation_date', fromDate);
+            if (filters.dateRange.to) {
+                query = query.lte('operation_date', filters.dateRange.to);
             }
 
-            // Start building the main query
-            let baseQuery = supabase.from('transactions').select(TRANSACTIONS_QUERY);
-            let countQuery = supabase.from('transactions').select('*', { count: 'exact', head: true });
-
-            // Apply transaction IDs filter only if we have specific filters active
-            if (filters.type.value !== 'all' || 
-                filters.categories.selected.length > 0 || 
-                filters.subcategories.selected.length > 0) {
-                if (matchingIds.length > 0) {
-                    baseQuery = baseQuery.in('id', matchingIds);
-                    countQuery = countQuery.in('id', matchingIds);
+            // Handle transaction type filter (income/expense)
+            if (filters.type.value !== 'all') {
+                if (filters.type.value === 'income') {
+                    query = query.gte('categories.amount', 0.01);
                 } else {
-                    return {
-                        transactions: [],
-                        totalPages: 0,
-                        currentPage: page
-                    };
+                    query = query.lt('categories.amount', 0);
                 }
             }
 
-            // Apply date filter
-            if (filters.dateRange.from || filters.dateRange.to) {
-                if (filters.dateRange.from) {
-                    const op = filters.dateRange.isNegative ? 'lt' : 'gte';
-                    baseQuery = baseQuery[op]('operation_date', filters.dateRange.from);
-                    countQuery = countQuery[op]('operation_date', filters.dateRange.from);
-                }
-                if (filters.dateRange.to) {
-                    const op = filters.dateRange.isNegative ? 'gt' : 'lte';
-                    baseQuery = baseQuery[op]('operation_date', filters.dateRange.to);
-                    countQuery = countQuery[op]('operation_date', filters.dateRange.to);
+            // Handle category filters
+            if (filters.categories.selected.length > 0) {
+                const categoryIds = filters.categories.selected.map(Number);
+                if (filters.categories.isNegative) {
+                    query = query.not('categories.category_id', 'in', `(${categoryIds.join(',')})`);
+                } else {
+                    query = query.in('categories.category_id', categoryIds);
                 }
             }
 
-            // Apply search filter
+            // Handle subcategory filters
+            if (filters.subcategories.selected.length > 0) {
+                const subcategoryIds = filters.subcategories.selected.map(Number);
+                query = query.in('categories.subcategory_id', subcategoryIds);
+            }
+
+            // Handle description search
             if (filters.search.value) {
-                const searchValue = `%${filters.search.value}%`;
+                const searchValue = `%${filters.search.value.replace(/[%_]/g, '')}%`;
                 if (filters.search.isNegative) {
-                    baseQuery = baseQuery.not('description', 'ilike', searchValue).not('user_description', 'ilike', searchValue);
-                    countQuery = countQuery.not('description', 'ilike', searchValue).not('user_description', 'ilike', searchValue);
+                    query = query.or(
+                        `description.not.ilike.${searchValue}`
+                    ).or(
+                        `user_description.is.null, user_description.not.ilike.${searchValue}`
+                    );                    
                 } else {
-                    baseQuery = baseQuery.or('description.ilike.' + searchValue + ',user_description.ilike.' + searchValue);
-                    countQuery = countQuery.or('description.ilike.' + searchValue + ',user_description.ilike.' + searchValue);
+                    query = query.or(`description.ilike.${searchValue},user_description.ilike.${searchValue}`);
                 }
             }
 
-            // Execute final queries with timing
-            const [{ data: transactions, error }, { count, error: countError }] = await measureAsync(
-                'fetch-final-filtered-results',
-                () => Promise.all([
-                    baseQuery.order('operation_date', { ascending: false }).range(offset, offset + pageSize - 1),
-                    countQuery
-                ])
-            );
+            // Apply final ordering and pagination
+            const { data: transactions, error, count } = await query
+                .order('operation_date', { ascending: false })
+                .range(offset, offset + PAGE_SIZE - 1);
 
-            if (error || countError) {
-                return {
-                    error: 'Failed to fetch transactions'
-                };
+            if (error) {
+                console.error('Query error:', error);
+                return { error: 'Failed to fetch transactions' };
             }
-
-            const totalPages = count ? Math.ceil(count / pageSize) : 0;
 
             return {
                 transactions,
-                totalPages,
+                totalPages: Math.ceil((count ?? 0) / PAGE_SIZE),
                 currentPage: page
             };
         });

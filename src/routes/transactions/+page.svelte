@@ -8,11 +8,12 @@
 
     let { data } = $props<{ data: PageData }>();
 
-    const { transactionsList, totalPages, currentPage, categories: allCategories } = $derived({
+    const { transactionsList, totalPages, currentPage, categories: allCategories, defaultFromDate } = $derived({
         transactionsList: data.transactions,
         totalPages: data.totalPages,
         currentPage: data.currentPage,
-        categories: data.categories
+        categories: data.categories,
+        defaultFromDate: data.defaultFromDate
     });
     $inspect(transactionsList)
     let editingTransaction = $state<number | null>(null);
@@ -20,23 +21,28 @@
 
     // Filter state
     let filters = $state({
-        type: { value: 'all', isNegative: false }, // 'all' | 'income' | 'expense'
+        type: { value: 'all' },
         dateRange: { 
-            from: '', 
-            to: '', 
-            isNegative: false 
+            from: defaultFromDate || '', 
+            to: ''
         },
         categories: {
             selected: [] as string[],
             isNegative: false
         },
         subcategories: {
-            selected: [] as string[],
-            isNegative: false
+            selected: [] as string[]
         },
         search: {
             value: '',
             isNegative: false
+        }
+    });
+
+    // Clear subcategory selections when negative category filter is enabled
+    $effect(() => {
+        if (filters.categories.isNegative) {
+            filters.subcategories.selected = [];
         }
     });
 
@@ -78,13 +84,13 @@
         if (browser) {
             const params = new URLSearchParams(window.location.search);
             filters.type.value = params.get('type') || 'all';
-            filters.dateRange.from = params.get('dateFrom') || '';
+            filters.dateRange.from = params.get('dateFrom') || defaultFromDate || '';
             filters.dateRange.to = params.get('dateTo') || '';
             filters.categories.selected = params.get('categories')?.split(',') || [];
             filters.subcategories.selected = params.get('subcategories')?.split(',') || [];
             filters.search.value = params.get('search') || '';
-            filters.type.isNegative = params.get('excludeCategories')?.split(',').includes('income');
-            filters.type.isNegative = params.get('excludeCategories')?.split(',').includes('expense') || filters.type.isNegative;
+            filters.categories.isNegative = params.get('excludeCategories') === 'true';
+            filters.search.isNegative = params.get('excludeSearch') === 'true';
         }
     });
 
@@ -112,7 +118,14 @@
     }
 
     function changePage(page: number) {
-        goto(`?page=${page}`);
+        const filterForm = document.getElementById('filter-form') as HTMLFormElement;
+        if (filterForm) {
+            const pageInput = filterForm.querySelector('input[name="page"]') as HTMLInputElement;
+            if (pageInput) {
+                pageInput.value = page.toString();
+                filterForm.requestSubmit();
+            }
+        }
     }
 
     function handleKeydown(e: KeyboardEvent) {
@@ -162,10 +175,10 @@
 
     function clearFilters() {
         filters = {
-            type: { value: 'all', isNegative: false },
-            dateRange: { from: '', to: '', isNegative: false },
+            type: { value: 'all' },
+            dateRange: { from: '', to: '' },
             categories: { selected: [], isNegative: false },
-            subcategories: { selected: [], isNegative: false },
+            subcategories: { selected: [] },
             search: { value: '', isNegative: false }
         };
         handleFilterChange();
@@ -212,14 +225,6 @@
                             <option value="expense">Expenses</option>
                         </select>
                     </label>
-                    <label class="negative-checkbox">
-                        <input 
-                            type="checkbox" 
-                            bind:checked={filters.type.isNegative}
-                            onchange={handleFilterChange}
-                        />
-                        Negative Filter
-                    </label>
                 </div>
             </div>
 
@@ -245,14 +250,6 @@
                             />
                         </label>
                     </div>
-                    <label class="negative-checkbox">
-                        <input 
-                            type="checkbox" 
-                            bind:checked={filters.dateRange.isNegative}
-                            onchange={handleFilterChange}
-                        />
-                        Negative Filter
-                    </label>
                 </div>
             </div>
 
@@ -283,7 +280,7 @@
                     </label>
                 </div>
 
-                {#if filters.categories.selected.length > 0}
+                {#if filters.categories.selected.length > 0 && !filters.categories.isNegative}
                     <div class="filter-row">
                         <div class="subcategories-section">
                             <span class="filter-label">Subcategories:</span>
@@ -304,14 +301,6 @@
                                 {/each}
                             </div>
                         </div>
-                        <label class="negative-checkbox">
-                            <input 
-                                type="checkbox" 
-                                bind:checked={filters.subcategories.isNegative}
-                                onchange={handleFilterChange}
-                            />
-                            Negative Filter
-                        </label>
                     </div>
                 {/if}
             </div>
@@ -340,6 +329,47 @@
             </div>
         </div>
     </form>
+
+    {#if totalPages > 1}
+        <div class="pagination">
+            <button 
+                disabled={currentPage === 1}
+                onclick={() => changePage(1)}
+            >
+                1
+            </button>
+            {#if currentPage > 3}
+                <span>...</span>
+            {/if}
+            <button 
+                disabled={currentPage === 1}
+                onclick={() => changePage(currentPage - 1)}
+            >
+                Previous
+            </button>
+            <button 
+                class:active={currentPage === currentPage}
+                onclick={() => changePage(currentPage)}
+            >
+                {currentPage}
+            </button>
+            <button 
+                disabled={currentPage === totalPages}
+                onclick={() => changePage(currentPage + 1)}
+            >
+                Next
+            </button>
+            {#if currentPage < totalPages - 2}
+                <span>...</span>
+            {/if}
+            <button 
+                disabled={currentPage === totalPages}
+                onclick={() => changePage(totalPages)}
+            >
+                {totalPages}
+            </button>
+        </div>
+    {/if}   
 
     <div class="transactions">
         {#if isLoading}
@@ -427,46 +457,6 @@
         {/if}
     </div>
 
-    {#if totalPages > 1}
-        <div class="pagination">
-            <button 
-                disabled={currentPage === 1}
-                onclick={() => changePage(1)}
-            >
-                1
-            </button>
-            {#if currentPage > 3}
-                <span>...</span>
-            {/if}
-            <button 
-                disabled={currentPage === 1}
-                onclick={() => changePage(currentPage - 1)}
-            >
-                Previous
-            </button>
-            <button 
-                class:active={currentPage === currentPage}
-                onclick={() => changePage(currentPage)}
-            >
-                {currentPage}
-            </button>
-            <button 
-                disabled={currentPage === totalPages}
-                onclick={() => changePage(currentPage + 1)}
-            >
-                Next
-            </button>
-            {#if currentPage < totalPages - 2}
-                <span>...</span>
-            {/if}
-            <button 
-                disabled={currentPage === totalPages}
-                onclick={() => changePage(totalPages)}
-            >
-                {totalPages}
-            </button>
-        </div>
-    {/if}
 </div>
 
 <style>
@@ -629,8 +619,7 @@
     }
 
     .categories-section,
-    .subcategories-section,
-    .excluded-categories-section {
+    .subcategories-section {
         display: flex;
         flex-direction: column;
         gap: 0.5rem;
