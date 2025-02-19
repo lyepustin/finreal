@@ -29,13 +29,11 @@
     let defaultFromDate = $state(data.defaultFromDate);
     let defaultToDate = $state(data.defaultToDate);
     let chartInstance: Chart | null = $state(null);
-    let chartCanvas = $state<HTMLCanvasElement | null>(null);
     let isLoading = $state(false);
-    let chartContainer: HTMLDivElement;
+    let chartContainer = $state<HTMLDivElement>();
+    let canvas = $state<HTMLCanvasElement>();
+    let chartUpdatePending = $state(false);
 
-    console.log('Initial chartData:', chartData);
-
-    // Format date for x-axis
     function formatPeriod(period: string, type: 'month' | 'week' = 'month') {
         if (type === 'month') {
             const [year, month] = period.split('-');
@@ -46,43 +44,19 @@
         }
     }
 
-    // Transform data for Chart.js
-    const transformedChartData = $derived(() => {
-        console.log('Transforming chart data:', chartData);
-        if (!Array.isArray(chartData) || chartData.length === 0) {
-            console.log('No valid chart data available');
-            return null;
-        }
-
-        const labels = chartData.map(d => formatPeriod(d.period, filters.period.value));
-        const incomeData = chartData.map(d => d.income);
-        const expensesData = chartData.map(d => d.expenses);
-
-        console.log('Transformed data:', { labels, incomeData, expensesData });
-        return { labels, incomeData, expensesData };
-    });
-
     // Update or create chart
     function updateChart() {
-        console.log('Updating chart...');
-        console.log('Canvas:', chartCanvas);
-        console.log('Transformed data:', transformedChartData);
-
-        if (!transformedChartData || !chartCanvas) {
-            console.log('Missing required data for chart update');
+        if (!chartData || chartData.length === 0 || !canvas) {
             return;
         }
 
-        // Set canvas dimensions based on container
         if (chartContainer) {
             const { width, height } = chartContainer.getBoundingClientRect();
-            chartCanvas.width = width;
-            chartCanvas.height = height;
+            canvas.width = width;
+            canvas.height = height;
         }
 
-        // Destroy existing chart if it exists
         if (chartInstance) {
-            console.log('Destroying existing chart');
             chartInstance.destroy();
             chartInstance = null;
         }
@@ -90,18 +64,18 @@
         const config = {
             type: 'bar' as const,
             data: {
-                labels: transformedChartData.labels,
+                labels: chartData.map(d => formatPeriod(d.period, filters.period.value)),
                 datasets: [
                     {
                         label: 'Income',
-                        data: transformedChartData.incomeData,
+                        data: chartData.map(d => d.income),
                         backgroundColor: '#a8e6cf80', // Pastel green with transparency
                         borderColor: '#a8e6cf',
                         borderWidth: 1
                     },
                     {
                         label: 'Expenses',
-                        data: transformedChartData.expensesData,
+                        data: chartData.map(d => d.expenses),
                         backgroundColor: '#ffb3ba80', // Pastel red with transparency
                         borderColor: '#ffb3ba',
                         borderWidth: 1
@@ -141,8 +115,7 @@
             }
         };
 
-        console.log('Creating new chart with config:', config);
-        chartInstance = new Chart(chartCanvas, config);
+        chartInstance = new Chart(canvas, config);
     }
 
     // Handle window resize
@@ -155,22 +128,6 @@
             }
         }, 100);
     }
-
-    onMount(() => {
-        console.log('Component mounted');
-        window.addEventListener('resize', handleResize);
-        if (transformedChartData && chartCanvas) {
-            updateChart();
-        }
-        return () => {
-            window.removeEventListener('resize', handleResize);
-            if (chartInstance) {
-                console.log('Cleaning up chart');
-                chartInstance.destroy();
-                chartInstance = null;
-            }
-        };
-    });
 
     // Filter state
     let filters = $state({
@@ -209,15 +166,49 @@
         isLoading = true;
         
         return async ({ result }: { result: any }) => {
-            console.log('Form submission result:', result);
             isLoading = false;
             
             if (result.type === 'success' && result.data?.data?.chartData) {
                 chartData = result.data.data.chartData;
-                console.log('Updated chartData:', chartData);
+                chartUpdatePending = true;
             }
         };
     }
+
+    function resetFilters() {
+        filters.type.value = 'all';
+        filters.dateRange.from = defaultFromDate;
+        filters.dateRange.to = defaultToDate;
+        filters.categories.selected = [];
+        filters.categories.isNegative = false;
+        filters.subcategories.selected = [];
+        filters.search.value = '';
+        filters.search.isNegative = false;
+        filters.period.value = 'month';
+        handleFilterChange();
+    }
+
+    // Add effect to handle chart updates
+    $effect(() => {
+        if (chartUpdatePending && chartData && canvas) {
+            chartUpdatePending = false;
+            updateChart();
+        }
+    });
+
+    onMount(() => {
+        window.addEventListener('resize', handleResize);
+        if (chartData && canvas) {
+            chartUpdatePending = true;
+        }
+        return () => {
+            window.removeEventListener('resize', handleResize);
+            if (chartInstance) {
+                chartInstance.destroy();
+                chartInstance = null;
+            }
+        };
+    });
 </script>
 
 <div class="analytics-container">
@@ -231,14 +222,17 @@
         <div class="filters">
             <div class="filter-header">
                 <h3>Filters</h3>
-                <div class="period-selector">
-                    <label>
-                        Period:
-                        <select bind:value={filters.period.value} onchange={handleFilterChange}>
-                            <option value="month">Monthly</option>
-                            <option value="week">Weekly</option>
-                        </select>
-                    </label>
+                <div class="filter-actions">
+                    <button type="button" class="reset-button" onclick={resetFilters}>Reset Filters</button>
+                    <div class="period-selector">
+                        <label>
+                            Period:
+                            <select bind:value={filters.period.value} onchange={handleFilterChange}>
+                                <option value="month">Monthly</option>
+                                <option value="week">Weekly</option>
+                            </select>
+                        </label>
+                    </div>
                 </div>
             </div>
 
@@ -318,9 +312,9 @@
     >
         {#if isLoading}
             <div class="loading">Loading chart data...</div>
-        {:else if transformedChartData}
+        {:else if chartData}
             <canvas 
-                bind:this={chartCanvas}
+                bind:this={canvas}
             ></canvas>
         {:else}
             <div class="no-data">No data available for the selected filters</div>
@@ -358,6 +352,32 @@
     .filter-header h3 {
         margin: 0;
         color: #2c3e50;
+    }
+
+    .filter-actions {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .reset-button {
+        padding: 0.5rem 1rem;
+        background-color: #f8f9fa;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        color: #495057;
+        cursor: pointer;
+        font-size: 0.9rem;
+        transition: all 0.2s ease;
+    }
+
+    .reset-button:hover {
+        background-color: #e9ecef;
+        border-color: #ced4da;
+    }
+
+    .reset-button:active {
+        background-color: #dee2e6;
     }
 
     .filter-group {

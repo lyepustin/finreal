@@ -59,20 +59,13 @@ export const load: PageServerLoad = async ({ depends, locals: { supabase } }) =>
     depends('supabase:analytics')
 
     return await measureAsync('analytics-page-load', async () => {
-        console.log('Starting initial load...');
-        
-        // Get categories first to exclude transfers
         const { data: categories } = await supabase
             .from('categories')
             .select('id, name')
             .order('name');
 
-        console.log('Categories loaded:', categories);
-
         const transfersCategoryId = categories?.find(c => c.name === TRANSFERS_CATEGORY_NAME)?.id;
-        console.log('Transfers category ID:', transfersCategoryId);
 
-        // Start building the query
         let query = supabase
             .from('transaction_categories')
             .select(`
@@ -84,15 +77,12 @@ export const load: PageServerLoad = async ({ depends, locals: { supabase } }) =>
             .gte('transactions.operation_date', DEFAULT_FROM_DATE)
             .lte('transactions.operation_date', DEFAULT_TO_DATE);
 
-        // Only exclude transfers if we found the transfers category
         if (transfersCategoryId) {
             query = query.neq('category_id', transfersCategoryId);
         }
 
         const { data: transactionData } = await query;
-        console.log('Amount of raw transaction data:', transactionData?.length);
 
-        // Transform data for the chart
         const chartData = groupTransactionsByPeriod(
             transactionData?.map(t => ({
                 date: t.transaction.operation_date,
@@ -100,8 +90,6 @@ export const load: PageServerLoad = async ({ depends, locals: { supabase } }) =>
             })) || [],
             'month'
         );
-        console.log('Amount of transaction data before transformation:', transactionData?.length);
-        console.log('Transformed chart data:', JSON.stringify(chartData, null, 2));
 
         return {
             chartData,
@@ -124,22 +112,16 @@ interface FilterOptions {
 export const actions = {
     default: async ({ request, locals: { supabase } }) => {
         return await measureAsync('analytics-filter-action', async () => {
-            console.log('Starting filter action...');
-            
             const formData = await request.formData();
             const filters: FilterOptions = JSON.parse(formData.get('filters')?.toString() || '{}');
-            console.log('Applied filters:', filters);
 
-            // Get categories to exclude transfers
             const { data: categories } = await supabase
                 .from('categories')
                 .select('id, name')
                 .order('name');
 
             const transfersCategoryId = categories?.find(c => c.name === TRANSFERS_CATEGORY_NAME)?.id;
-            console.log('Transfers category ID:', transfersCategoryId);
 
-            // Start with base query
             let query = supabase
                 .from('transaction_categories')
                 .select(`
@@ -149,19 +131,16 @@ export const actions = {
                     )
                 `);
 
-            // Apply date range filter
             const fromDate = filters.dateRange.from || DEFAULT_FROM_DATE;
             const toDate = filters.dateRange.to || DEFAULT_TO_DATE;
             query = query
                 .gte('transactions.operation_date', fromDate)
                 .lte('transactions.operation_date', toDate);
 
-            // Only exclude transfers if we found the transfers category
             if (transfersCategoryId) {
                 query = query.neq('category_id', transfersCategoryId);
             }
 
-            // Handle transaction type filter (income/expense)
             if (filters.type.value !== 'all') {
                 if (filters.type.value === 'income') {
                     query = query.gte('amount', 0.01);
@@ -170,11 +149,10 @@ export const actions = {
                 }
             }
 
-            // Handle category filters
             if (filters.categories.selected.length > 0) {
                 const categoryIds = filters.categories.selected
                     .map(Number)
-                    .filter(id => !isNaN(id)); // Filter out invalid IDs
+                    .filter(id => !isNaN(id));
                 
                 if (categoryIds.length > 0) {
                     if (filters.categories.isNegative) {
@@ -185,11 +163,10 @@ export const actions = {
                 }
             }
 
-            // Handle subcategory filters
             if (filters.subcategories.selected.length > 0) {
                 const subcategoryIds = filters.subcategories.selected
                     .map(Number)
-                    .filter(id => !isNaN(id)); // Filter out invalid IDs
+                    .filter(id => !isNaN(id));
                 
                 if (subcategoryIds.length > 0) {
                     query = query.in('subcategory_id', subcategoryIds);
@@ -197,14 +174,11 @@ export const actions = {
             }
 
             const { data: transactionData, error } = await query;
-            console.log('Query error if any:', error);
 
             if (error) {
-                console.error('Query error:', error);
                 return { error: 'Failed to fetch analytics data' };
             }
 
-            // Transform data for the chart
             const chartData = groupTransactionsByPeriod(
                 transactionData?.map(t => ({
                     date: t.transaction.operation_date,
@@ -212,16 +186,13 @@ export const actions = {
                 })) || [],
                 filters.period.value || 'month'
             );
-            console.log('Transformed chart data:', chartData);
 
-            const response = {
+            return {
                 success: true,
                 data: {
                     chartData
                 }
             };
-            console.log('Sending response:', response);
-            return response;
         });
     }
 } as Actions; 
