@@ -1,9 +1,9 @@
 <script lang="ts">
     import type { PageData } from './$types'
-    import type { Category, SubCategory } from '$lib/types'
+    import type { Category, SubCategory, Transaction } from '$lib/types'
     import { transactions } from '$lib/stores/transactions'
     import { enhance } from '$app/forms'
-    import { goto } from '$app/navigation'
+    import { goto, invalidate } from '$app/navigation'
     import { browser } from '$app/environment'
 
     let { data } = $props<{ data: PageData }>();
@@ -19,19 +19,38 @@
     let editingTransaction = $state<number | null>(null);
     let editDescription = $state('');
 
-    // Filter state
-    let filters = $state({
+    // Filter state with proper typing
+    interface FilterState {
+        type: { value: 'all' | 'income' | 'expense' };
+        dateRange: { 
+            from: string; 
+            to: string;
+        };
+        categories: {
+            selected: string[];
+            isNegative: boolean;
+        };
+        subcategories: {
+            selected: string[];
+        };
+        search: {
+            value: string;
+            isNegative: boolean;
+        };
+    }
+
+    let filters = $state<FilterState>({
         type: { value: 'all' },
         dateRange: { 
-            from: defaultFromDate || '', 
+            from: '', 
             to: ''
         },
         categories: {
-            selected: [] as string[],
+            selected: [],
             isNegative: false
         },
         subcategories: {
-            selected: [] as string[]
+            selected: []
         },
         search: {
             value: '',
@@ -39,10 +58,29 @@
         }
     });
 
-    // Clear subcategory selections when negative category filter is enabled
+    // Effects
+    $effect(() => {
+        // Update the from date when defaultFromDate changes
+        filters.dateRange.from = defaultFromDate || '';
+    });
+
     $effect(() => {
         if (filters.categories.isNegative) {
             filters.subcategories.selected = [];
+        }
+    });
+
+    $effect(() => {
+        if (browser) {
+            const params = new URLSearchParams(window.location.search);
+            filters.type.value = params.get('type') as FilterState['type']['value'] || 'all';
+            filters.dateRange.from = params.get('dateFrom') || defaultFromDate || '';
+            filters.dateRange.to = params.get('dateTo') || '';
+            filters.categories.selected = params.get('categories')?.split(',').filter(Boolean) || [];
+            filters.subcategories.selected = params.get('subcategories')?.split(',').filter(Boolean) || [];
+            filters.search.value = params.get('search') || '';
+            filters.categories.isNegative = params.get('excludeCategories') === 'true';
+            filters.search.isNegative = params.get('excludeSearch') === 'true';
         }
     });
 
@@ -79,37 +117,18 @@
         };
     });
 
-    // Initialize filters from URL params
-    $effect(() => {
-        if (browser) {
-            const params = new URLSearchParams(window.location.search);
-            filters.type.value = params.get('type') || 'all';
-            filters.dateRange.from = params.get('dateFrom') || defaultFromDate || '';
-            filters.dateRange.to = params.get('dateTo') || '';
-            filters.categories.selected = params.get('categories')?.split(',') || [];
-            filters.subcategories.selected = params.get('subcategories')?.split(',') || [];
-            filters.search.value = params.get('search') || '';
-            filters.categories.isNegative = params.get('excludeCategories') === 'true';
-            filters.search.isNegative = params.get('excludeSearch') === 'true';
-        }
-    });
-
-    function startEditing(transaction: any) {
+    // Transaction editing functions
+    function startEditing(transaction: Transaction) {
         editingTransaction = transaction.id;
         editDescription = transaction.user_description || transaction.description;
     }
 
-    async function saveDescription(transaction: any) {
+    async function saveDescription(transaction: Transaction) {
         await transactions.updateTransactionDescription(transaction.id, editDescription);
         editingTransaction = null;
         
-        // Invalidate the data to refresh from server
-        await fetch('/transactions', {
-            method: 'GET',
-            headers: {
-                'x-sveltekit-invalidate': 'supabase:transactions'
-            }
-        });
+        // Properly invalidate the data to refresh from server
+        await invalidate('supabase:transactions');
     }
 
     function focusOnElement(node: HTMLElement) {
@@ -119,12 +138,10 @@
 
     function changePage(page: number) {
         const filterForm = document.getElementById('filter-form') as HTMLFormElement;
-        if (filterForm) {
-            const pageInput = filterForm.querySelector('input[name="page"]') as HTMLInputElement;
-            if (pageInput) {
-                pageInput.value = page.toString();
-                filterForm.requestSubmit();
-            }
+        const pageInput = filterForm?.querySelector('input[name="page"]') as HTMLInputElement;
+        if (pageInput) {
+            pageInput.value = page.toString();
+            filterForm.requestSubmit();
         }
     }
 
@@ -133,15 +150,10 @@
     }
 
     function handleFilterChange() {
-        // Clear any existing timeout
-        if (debounceTimer) clearTimeout(debounceTimer);
-        
-        // Set a new timeout
+        clearTimeout(debounceTimer);
         debounceTimer = setTimeout(() => {
             const filterForm = document.getElementById('filter-form') as HTMLFormElement;
-            if (filterForm) {
-                filterForm.requestSubmit();
-            }
+            filterForm?.requestSubmit();
         }, 300);
     }
 
@@ -152,7 +164,7 @@
         } else {
             filters.categories.selected = filters.categories.selected.filter(id => id !== categoryId);
         }
-        // Clear subcategories that don't belong to selected categories
+        
         if (filters.categories.selected.length > 0) {
             filters.subcategories.selected = filters.subcategories.selected.filter(subId => {
                 const subcategory = allCategories
