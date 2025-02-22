@@ -74,6 +74,10 @@ interface FilterOptions {
     subcategories: { selected: string[] };
     dateRange: { from?: string; to?: string };
     search: { value: string; isNegative: boolean };
+    sort: {
+        column: 'date' | 'amount' | 'description' | null;
+        direction: 'asc' | 'desc';
+    };
 }
 
 export const actions = {
@@ -135,10 +139,54 @@ export const actions = {
                 }
             }
 
-            // Apply final ordering and pagination
-            const { data: transactions, error, count } = await query
-                .order('operation_date', { ascending: false })
-                .range(offset, offset + PAGE_SIZE - 1);
+            // Apply sorting and pagination based on sort type
+            let transactions: any[] | null = null;
+            let error = null;
+            let count = 0;
+
+            if (filters.sort?.column === 'amount') {
+                // For amount sorting, fetch all filtered results without pagination
+                const result = await query.order('operation_date', { ascending: false });
+                error = result.error;
+                count = result.count ?? 0;
+
+                if (!error && result.data) {
+                    // Calculate total amount for each transaction and sort
+                    const allTransactions = result.data.map(transaction => ({
+                        ...transaction,
+                        totalAmount: transaction.categories.reduce((sum, tc) => sum + tc.amount, 0)
+                    }));
+
+                    // Sort by total amount
+                    allTransactions.sort((a, b) => {
+                        return filters.sort.direction === 'asc' 
+                            ? a.totalAmount - b.totalAmount 
+                            : b.totalAmount - a.totalAmount;
+                    });
+
+                    // Apply pagination after sorting
+                    transactions = allTransactions.slice(offset, offset + PAGE_SIZE);
+                }
+            } else {
+                // For other sorts, apply sorting and pagination in the database
+                const ascending = filters.sort?.direction === 'asc';
+                switch (filters.sort?.column) {
+                    case 'date':
+                        query = query.order('operation_date', { ascending });
+                        break;
+                    case 'description':
+                        query = query.order('user_description', { ascending, nullsLast: true })
+                                   .order('description', { ascending });
+                        break;
+                    default:
+                        query = query.order('operation_date', { ascending: false });
+                }
+
+                const result = await query.range(offset, offset + PAGE_SIZE - 1);
+                transactions = result.data;
+                error = result.error;
+                count = result.count ?? 0;
+            }
 
             if (error) {
                 console.error('Query error:', error);

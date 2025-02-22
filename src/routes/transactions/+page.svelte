@@ -18,6 +18,7 @@
     $inspect(transactionsList)
     let editingTransaction = $state<number | null>(null);
     let editDescription = $state('');
+    let isFiltersVisible = $state(false);
 
     // Filter state with proper typing
     interface FilterState {
@@ -37,6 +38,10 @@
             value: string;
             isNegative: boolean;
         };
+        sort: {
+            column: 'date' | 'amount' | 'description' | null;
+            direction: 'asc' | 'desc';
+        };
     }
 
     let filters = $state<FilterState>({
@@ -55,6 +60,10 @@
         search: {
             value: '',
             isNegative: false
+        },
+        sort: {
+            column: 'date',
+            direction: 'desc'
         }
     });
 
@@ -191,16 +200,37 @@
             dateRange: { from: '', to: '' },
             categories: { selected: [], isNegative: false },
             subcategories: { selected: [] },
-            search: { value: '', isNegative: false }
+            search: { value: '', isNegative: false },
+            sort: { column: 'date', direction: 'desc' }
         };
+        handleFilterChange();
+    }
+
+    function handleSort(column: FilterState['sort']['column']) {
+        if (filters.sort.column === column) {
+            // Toggle direction if same column
+            filters.sort.direction = filters.sort.direction === 'asc' ? 'desc' : 'asc';
+        } else {
+            // Set new column with default desc direction
+            filters.sort.column = column;
+            filters.sort.direction = 'desc';
+        }
         handleFilterChange();
     }
 </script>
 
 <div class="transactions-container">
+    <button 
+        class="toggle-filters-btn" 
+        onclick={() => isFiltersVisible = !isFiltersVisible}
+    >
+        {isFiltersVisible ? 'Hide Filters' : 'Show Filters'}
+    </button>
+
     <form 
         id="filter-form"
         method="POST"
+        class:hidden={!isFiltersVisible}
         use:enhance={() => {
             isLoading = true;
             
@@ -388,79 +418,117 @@
             <div class="loading">Loading...</div>
         {:else}
             {#if transactionsList?.length}
-                {#each transactionsList as transaction}
-                    <div class="transaction-wrapper">
-                        {#if editingTransaction === transaction.id}
-                            <div class="transaction editing">
-                                <div class="date">
-                                    {new Date(transaction.operation_date).toLocaleDateString()}
-                                </div>
-                                <div class="description">
-                                    <form 
-                                        class="edit-form" 
-                                        onsubmit={(e) => {
-                                            e.preventDefault();
-                                            saveDescription(transaction);
-                                        }}
-                                    >
-                                        <input 
-                                            type="text" 
-                                            bind:value={editDescription}
-                                            onkeydown={handleKeydown}
-                                            use:focusOnElement
-                                        />
-                                        <button type="submit">Save</button>
-                                        <button 
-                                            type="button" 
-                                            onclick={() => editingTransaction = null}
+                <table class="transactions-table">
+                    <thead>
+                        <tr>
+                            <th>
+                                <button 
+                                    class="sort-button" 
+                                    onclick={() => handleSort('date')}
+                                    class:active={filters.sort.column === 'date'}
+                                    title="Sort by date"
+                                >
+                                    Date
+                                    {#if filters.sort.column === 'date'}
+                                        <span class="sort-icon">{filters.sort.direction === 'asc' ? '↑' : '↓'}</span>
+                                    {/if}
+                                </button>
+                            </th>
+                            <th>
+                                <button 
+                                    class="sort-button"
+                                    onclick={() => handleSort('description')}
+                                    class:active={filters.sort.column === 'description'}
+                                    title="Sort by description"
+                                >
+                                    Description
+                                    {#if filters.sort.column === 'description'}
+                                        <span class="sort-icon">{filters.sort.direction === 'asc' ? '↑' : '↓'}</span>
+                                    {/if}
+                                </button>
+                            </th>
+                            <th>
+                                <button 
+                                    class="sort-button"
+                                    onclick={() => handleSort('amount')}
+                                    class:active={filters.sort.column === 'amount'}
+                                    title="Sort by amount"
+                                >
+                                    Amount
+                                    {#if filters.sort.column === 'amount'}
+                                        <span class="sort-icon">{filters.sort.direction === 'asc' ? '↑' : '↓'}</span>
+                                    {/if}
+                                </button>
+                            </th>
+                            <th>Categories</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {#each transactionsList as transaction}
+                            <tr class="transaction-row">
+                                {#if editingTransaction === transaction.id}
+                                    <td>{new Date(transaction.operation_date).toLocaleDateString()}</td>
+                                    <td>
+                                        <form 
+                                            class="edit-form" 
+                                            onsubmit={(e) => {
+                                                e.preventDefault();
+                                                saveDescription(transaction);
+                                            }}
                                         >
-                                            Cancel
+                                            <input 
+                                                type="text" 
+                                                bind:value={editDescription}
+                                                onkeydown={handleKeydown}
+                                                use:focusOnElement
+                                            />
+                                            <button type="submit">Save</button>
+                                            <button 
+                                                type="button" 
+                                                onclick={() => editingTransaction = null}
+                                            >
+                                                Cancel
+                                            </button>
+                                        </form>
+                                    </td>
+                                    <td>{transaction.categories.reduce((sum, tc) => sum + tc.amount, 0).toFixed(2)}</td>
+                                    <td class="categories-cell">
+                                        {#each transaction.categories as tc}
+                                            <div class="category">
+                                                {tc.category.name}
+                                                {#if tc.subcategory}
+                                                    - {tc.subcategory.name}
+                                                {/if}
+                                            </div>
+                                        {/each}
+                                    </td>
+                                {:else}
+                                    <td>{new Date(transaction.operation_date).toLocaleDateString()}</td>
+                                    <td>
+                                        <button 
+                                            class="description-button" 
+                                            onclick={() => startEditing(transaction)}
+                                            type="button"
+                                        >
+                                            {transaction.user_description || transaction.description}
                                         </button>
-                                    </form>
-                                </div>
-                                <div class="amount">
-                                    {transaction.categories.reduce((sum, tc) => sum + tc.amount, 0).toFixed(2)}
-                                </div>
-                                <div class="categories">
-                                    {#each transaction.categories as tc}
-                                        <div class="category">
-                                            {tc.category.name}
-                                            {#if tc.subcategory}
-                                                - {tc.subcategory.name}
-                                            {/if}
-                                        </div>
-                                    {/each}
-                                </div>
-                            </div>
-                        {:else}
-                            <button 
-                                class="transaction" 
-                                onclick={() => startEditing(transaction)}
-                                type="button"
-                            >
-                                <div class="date">
-                                    {new Date(transaction.operation_date).toLocaleDateString()}
-                                </div>
-                                <div class="description">
-                                    {transaction.user_description || transaction.description}
-                                </div>
-                                <div class="amount">
-                                    {transaction.categories.reduce((sum, tc) => sum + tc.amount, 0).toFixed(2)}
-                                </div>
-                                <div class="categories">
-                                    {#each transaction.categories as tc}
-                                        <div class="category">
-                                            {tc.category.name}
-                                            {#if tc.subcategory}
-                                                - {tc.subcategory.name}
-                                            {/if}
-                                        </div>
-                                    {/each}
-                                </div>
-                            </button>
-                        {/if}
-                    </div>
-                {/each}
+                                    </td>
+                                    <td>{transaction.categories.reduce((sum, tc) => sum + tc.amount, 0).toFixed(2)}</td>
+                                    <td class="categories-cell">
+                                        {#each transaction.categories as tc}
+                                            <div class="category">
+                                                {tc.category.name}
+                                                {#if tc.subcategory}
+                                                    - {tc.subcategory.name}
+                                                {/if}
+                                            </div>
+                                        {/each}
+                                    </td>
+                                {/if}
+                            </tr>
+                        {/each}
+                    </tbody>
+                </table>
             {:else}
                 <div class="no-transactions">
                     No transactions found
@@ -703,5 +771,135 @@
         padding: 2rem;
         color: #666;
         font-style: italic;
+    }
+
+    .toggle-filters-btn {
+        padding: 0.75rem 1.5rem;
+        background-color: #007bff;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-weight: 500;
+        align-self: flex-start;
+        margin-bottom: 1rem;
+    }
+
+    .toggle-filters-btn:hover {
+        background-color: #0056b3;
+    }
+
+    .hidden {
+        display: none;
+    }
+
+    .transactions-table {
+        width: 100%;
+        border-collapse: collapse;
+        background-color: white;
+        border-radius: 4px;
+        overflow: hidden;
+    }
+
+    .transactions-table th {
+        background-color: #f8f9fa;
+        padding: 1rem;
+        text-align: left;
+        font-weight: 500;
+        border-bottom: 2px solid #dee2e6;
+    }
+
+    .transactions-table td {
+        padding: 1rem;
+        border-bottom: 1px solid #dee2e6;
+        vertical-align: top;
+    }
+
+    .transaction-row:hover {
+        background-color: #f5f5f5;
+    }
+
+    .description-button {
+        background: none;
+        border: none;
+        padding: 0;
+        margin: 0;
+        font-family: inherit;
+        font-size: inherit;
+        color: inherit;
+        cursor: pointer;
+        text-align: left;
+        width: 100%;
+    }
+
+    .description-button:hover {
+        color: #007bff;
+    }
+
+    .categories-cell {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+
+    .category {
+        display: inline-block;
+        padding: 0.25rem 0.5rem;
+        background-color: #f8f9fa;
+        border-radius: 4px;
+        border: 1px solid #dee2e6;
+        font-size: 0.9rem;
+    }
+
+    .edit-form {
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+    }
+
+    .edit-form input {
+        padding: 0.25rem 0.5rem;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        flex-grow: 1;
+    }
+
+    .edit-form button {
+        padding: 0.25rem 0.5rem;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        background-color: white;
+        cursor: pointer;
+    }
+
+    .edit-form button:hover {
+        background-color: #f0f0f0;
+    }
+
+    .sort-button {
+        background: none;
+        border: none;
+        padding: 0;
+        font: inherit;
+        font-weight: 500;
+        color: inherit;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        width: 100%;
+        text-align: left;
+    }
+
+    .sort-button:hover {
+        color: #007bff;
+    }
+
+    .sort-button.active {
+        color: #007bff;
+    }
+
+    .sort-icon {
+        font-size: 0.8em;
     }
 </style> 
