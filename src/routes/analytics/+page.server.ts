@@ -4,17 +4,25 @@ import { measureAsync } from '$lib/utils/performance';
 // Constants
 const DEFAULT_FROM_DATE = '2024-01-01';
 const DEFAULT_TO_DATE = '2024-12-31';
-const TRANSFERS_CATEGORY_NAME = 'transfers ♻️';
+const EXCLUDED_TRANSFERS_CATEGORY_NAME = 'transfers ♻️';
 
 interface TransactionData {
     date: string;
     amount: number;
+    categoryId: string;
+    categoryName: string;
 }
 
 interface ChartDataPoint {
     period: string;
     income: number;
     expenses: number;
+    categories: Array<{
+        id: string;
+        name: string;
+        amount: number;
+        type: 'income' | 'expense';
+    }>;
 }
 
 // Helper function to group transactions by time period
@@ -39,16 +47,27 @@ function groupTransactionsByPeriod(data: TransactionData[], period: 'month' | 'w
             groups.set(key, {
                 period: key,
                 income: 0,
-                expenses: 0
+                expenses: 0,
+                categories: []
             });
         }
         
-        const group = groups.get(key);
-        if (row.amount >= 0) {
+        const group = groups.get(key)!;
+        const isIncome = row.amount >= 0;
+        
+        if (isIncome) {
             group.income += row.amount;
         } else {
             group.expenses += Math.abs(row.amount);
         }
+
+        // Add category information
+        group.categories.push({
+            id: row.categoryId,
+            name: row.categoryName,
+            amount: Math.abs(row.amount),
+            type: isIncome ? 'income' : 'expense'
+        });
     });
     
     return Array.from(groups.values())
@@ -64,13 +83,14 @@ export const load: PageServerLoad = async ({ depends, locals: { supabase } }) =>
             .select('id, name')
             .order('name');
 
-        const transfersCategoryId = categories?.find(c => c.name === TRANSFERS_CATEGORY_NAME)?.id;
+        const transfersCategoryId = categories?.find(c => c.name === EXCLUDED_TRANSFERS_CATEGORY_NAME)?.id;
 
         let query = supabase
             .from('transaction_categories')
             .select(`
                 amount,
-                transaction:transactions!inner (
+                category:categories!inner(id, name),
+                transaction:transactions!inner(
                     operation_date
                 )
             `)
@@ -86,7 +106,9 @@ export const load: PageServerLoad = async ({ depends, locals: { supabase } }) =>
         const chartData = groupTransactionsByPeriod(
             transactionData?.map(t => ({
                 date: t.transaction.operation_date,
-                amount: t.amount
+                amount: t.amount,
+                categoryId: t.category.id,
+                categoryName: t.category.name
             })) || [],
             'month'
         );
@@ -120,13 +142,14 @@ export const actions = {
                 .select('id, name')
                 .order('name');
 
-            const transfersCategoryId = categories?.find(c => c.name === TRANSFERS_CATEGORY_NAME)?.id;
+            const transfersCategoryId = categories?.find(c => c.name === EXCLUDED_TRANSFERS_CATEGORY_NAME)?.id;
 
             let query = supabase
                 .from('transaction_categories')
                 .select(`
                     amount,
-                    transaction:transactions!inner (
+                    category:categories!inner(id, name),
+                    transaction:transactions!inner(
                         operation_date
                     )
                 `);
@@ -182,7 +205,9 @@ export const actions = {
             const chartData = groupTransactionsByPeriod(
                 transactionData?.map(t => ({
                     date: t.transaction.operation_date,
-                    amount: t.amount
+                    amount: t.amount,
+                    categoryId: t.category.id,
+                    categoryName: t.category.name
                 })) || [],
                 filters.period.value || 'month'
             );
@@ -195,4 +220,4 @@ export const actions = {
             };
         });
     }
-} as Actions; 
+} as Actions;

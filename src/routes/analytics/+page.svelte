@@ -2,131 +2,19 @@
 <script lang="ts">
     import type { PageData } from './$types';
     import { enhance } from '$app/forms';
-    import { onMount } from 'svelte';
-    import { Chart } from 'chart.js/auto';
-    import {
-        CategoryScale,
-        LinearScale,
-        BarElement,
-        Title,
-        Tooltip,
-        Legend
-    } from 'chart.js';
-
-    // Register Chart.js components
-    Chart.register(
-        CategoryScale,
-        LinearScale,
-        BarElement,
-        Title,
-        Tooltip,
-        Legend
-    );
+    import BarChart from '$lib/components/BarChart.svelte';
+    import CategoryCharts from '$lib/components/CategoryCharts.svelte';
 
     let { data } = $props<{ data: PageData }>();
     let chartData = $state(data.chartData);
     let categories = $state(data.categories);
     let defaultFromDate = $state(data.defaultFromDate);
     let defaultToDate = $state(data.defaultToDate);
-    let chartInstance: Chart | null = $state(null);
     let isLoading = $state(false);
-    let chartContainer = $state<HTMLDivElement>();
-    let canvas = $state<HTMLCanvasElement>();
-    let chartUpdatePending = $state(false);
+    let isFiltersVisible = $state(false);
 
-    function formatPeriod(period: string, type: 'month' | 'week' = 'month') {
-        if (type === 'month') {
-            const [year, month] = period.split('-');
-            return `${month}/${year}`;
-        } else {
-            const [year, week] = period.split('-W');
-            return `W${week}/${year}`;
-        }
-    }
-
-    // Update or create chart
-    function updateChart() {
-        if (!chartData || chartData.length === 0 || !canvas) {
-            return;
-        }
-
-        if (chartContainer) {
-            const { width, height } = chartContainer.getBoundingClientRect();
-            canvas.width = width;
-            canvas.height = height;
-        }
-
-        if (chartInstance) {
-            chartInstance.destroy();
-            chartInstance = null;
-        }
-
-        const config = {
-            type: 'bar' as const,
-            data: {
-                labels: chartData.map(d => formatPeriod(d.period, filters.period.value)),
-                datasets: [
-                    {
-                        label: 'Income',
-                        data: chartData.map(d => d.income),
-                        backgroundColor: '#a8e6cf80', // Pastel green with transparency
-                        borderColor: '#a8e6cf',
-                        borderWidth: 1
-                    },
-                    {
-                        label: 'Expenses',
-                        data: chartData.map(d => d.expenses),
-                        backgroundColor: '#ffb3ba80', // Pastel red with transparency
-                        borderColor: '#ffb3ba',
-                        borderWidth: 1
-                    }
-                ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        position: 'top' as const,
-                    },
-                    title: {
-                        display: true,
-                        text: 'Income vs Expenses'
-                    }
-                },
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        title: {
-                            display: true,
-                            text: 'Amount'
-                        },
-                        ticks: {
-                            callback: (value) => `$${value.toLocaleString()}`
-                        }
-                    },
-                    x: {
-                        title: {
-                            display: true,
-                            text: filters.period.value === 'month' ? 'Months' : 'Weeks'
-                        }
-                    }
-                }
-            }
-        };
-
-        chartInstance = new Chart(canvas, config);
-    }
-
-    // Handle window resize
-    let resizeTimeout: ReturnType<typeof setTimeout>;
-    function handleResize() {
-        clearTimeout(resizeTimeout);
-        resizeTimeout = setTimeout(() => {
-            if (chartInstance) {
-                chartInstance.resize();
-            }
-        }, 100);
+    function toggleFilters() {
+        isFiltersVisible = !isFiltersVisible;
     }
 
     // Filter state
@@ -170,7 +58,6 @@
             
             if (result.type === 'success' && result.data?.data?.chartData) {
                 chartData = result.data.data.chartData;
-                chartUpdatePending = true;
             }
         };
     }
@@ -187,35 +74,20 @@
         filters.period.value = 'month';
         handleFilterChange();
     }
-
-    // Add effect to handle chart updates
-    $effect(() => {
-        if (chartUpdatePending && chartData && canvas) {
-            chartUpdatePending = false;
-            updateChart();
-        }
-    });
-
-    onMount(() => {
-        window.addEventListener('resize', handleResize);
-        if (chartData && canvas) {
-            chartUpdatePending = true;
-        }
-        return () => {
-            window.removeEventListener('resize', handleResize);
-            if (chartInstance) {
-                chartInstance.destroy();
-                chartInstance = null;
-            }
-        };
-    });
 </script>
 
 <div class="analytics-container">
+    <div class="filters-toggle">
+        <button type="button" class="toggle-button" onclick={toggleFilters}>
+            {isFiltersVisible ? 'Hide Filters' : 'Show Filters'}
+        </button>
+    </div>
+
     <form 
         id="filter-form"
         method="POST"
         use:enhance={handleFormSubmit}
+        class="filters-form {isFiltersVisible ? 'visible' : ''}"
     >
         <input type="hidden" name="filters" value={JSON.stringify(filters)} />
         
@@ -306,20 +178,17 @@
         </div>
     </form>
 
-    <div 
-        class="chart-container" 
-        bind:this={chartContainer}
-    >
-        {#if isLoading}
-            <div class="loading">Loading chart data...</div>
-        {:else if chartData}
-            <canvas 
-                bind:this={canvas}
-            ></canvas>
-        {:else}
-            <div class="no-data">No data available for the selected filters</div>
-        {/if}
-    </div>
+    {#if isLoading}
+        <div class="loading">Loading chart data...</div>
+    {:else if chartData}
+        <CategoryCharts chartData={chartData} />
+        <BarChart 
+            chartData={chartData}
+            periodType={filters.period.value}
+        />
+    {:else}
+        <div class="no-data">No data available for the selected filters</div>
+    {/if}
 </div>
 
 <style>
@@ -330,6 +199,40 @@
         padding: 1.5rem;
         max-width: 1200px;
         margin: 0 auto;
+    }
+
+    .filters-toggle {
+        display: flex;
+        justify-content: flex-end;
+        margin-bottom: 1rem;
+    }
+
+    .toggle-button {
+        padding: 0.5rem 1rem;
+        background-color: #f8f9fa;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        color: #495057;
+        cursor: pointer;
+        font-size: 0.9rem;
+        transition: all 0.2s ease;
+    }
+
+    .toggle-button:hover {
+        background-color: #e9ecef;
+        border-color: #ced4da;
+    }
+
+    .filters-form {
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height 0.3s ease-out;
+        margin-bottom: 0;
+    }
+
+    .filters-form.visible {
+        max-height: 2000px;
+        margin-bottom: 2rem;
     }
 
     .filters {
@@ -450,28 +353,15 @@
         margin-top: 0.5rem;
     }
 
-    .chart-container {
-        position: relative;
-        height: 400px;
-        background-color: white;
-        padding: 1.5rem;
-        border-radius: 8px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-    }
-
-    .chart-container canvas {
-        width: 100% !important;
-        height: 100% !important;
-    }
-
     .loading,
     .no-data {
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
+        text-align: center;
+        padding: 2rem;
         color: #6c757d;
         font-size: 1.1rem;
+        background-color: white;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
     }
 
     label {
