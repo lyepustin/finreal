@@ -1,0 +1,15 @@
+Procedemos a crear otra vista (pestaña) en el proyecto que llame a analytics. En esta pagina me gustaria implementar la funcionalidad del filtro que tenemos en transacciones pero ademas:
+
+Ver dos plots (diagramas) que cambiarán con las acciones del filtro.
+
+el primero sera un diagrama de barras que representa el ratio de ingresos VS gastos ordenados por meses o semanas (dependiendo de la estacionalidad elegida).
+
+A continuacion, dos diagramas de pizza (tarta), uno al lado del otro:
+uno que represente la proporción(%) (y suma) de los ingresos asociados por categoría
+otro que represente la proporción(%) (y suma) de los gastos asociados por categoría
+
+Me gustaría que tuviera colores pastel, acuerdate de que estamos trabajando con svelte5, procura utilizar la libreria de layerchart.
+
+Es importante que el filtro funcione correctamente y que se pueda ver el resultado de las acciones del filtro en los diagramas. Por defecto se escoge todo el año 2024. Por defecto se excluye la categoria transfers ♻️
+
+Intentemos hacer las consultas a la base de datos de manera optima, paraleliza siempre que puedas.

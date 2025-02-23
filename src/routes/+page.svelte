@@ -3,4 +3,5 @@
 <p>
     <a href="/private">Private Area</a> | 
     <a href="/transactions">Transactions Page</a>
+    <a href="/analytics">Analytics Page</a>
 </p>
