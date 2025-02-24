@@ -8,13 +8,15 @@
 
     let { data } = $props<{ data: PageData }>();
 
-    const { transactionsList, totalPages, currentPage, categories: allCategories, defaultFromDate } = $derived({
+    let currentPage = $state(data.currentPage);
+    
+    const { transactionsList, totalPages, categories: allCategories, defaultFromDate } = $derived({
         transactionsList: data.transactions,
         totalPages: data.totalPages,
-        currentPage: data.currentPage,
         categories: data.categories,
         defaultFromDate: data.defaultFromDate
     });
+
     $inspect(transactionsList)
     let editingTransaction = $state<number | null>(null);
     let editDescription = $state('');
@@ -70,7 +72,9 @@
     // Effects
     $effect(() => {
         // Update the from date when defaultFromDate changes
-        filters.dateRange.from = defaultFromDate || '';
+        if (!filters.dateRange.from) {
+            filters.dateRange.from = defaultFromDate || '';
+        }
     });
 
     $effect(() => {
@@ -79,19 +83,73 @@
         }
     });
 
+    // Sync filters with URL parameters and handle redirections
     $effect(() => {
         if (browser) {
-            const params = new URLSearchParams(window.location.search);
-            filters.type.value = params.get('type') as FilterState['type']['value'] || 'all';
-            filters.dateRange.from = params.get('dateFrom') || defaultFromDate || '';
-            filters.dateRange.to = params.get('dateTo') || '';
-            filters.categories.selected = params.get('categories')?.split(',').filter(Boolean) || [];
-            filters.subcategories.selected = params.get('subcategories')?.split(',').filter(Boolean) || [];
-            filters.search.value = params.get('search') || '';
-            filters.categories.isNegative = params.get('excludeCategories') === 'true';
-            filters.search.isNegative = params.get('excludeSearch') === 'true';
+            // Update filters from URL params
+            filters = data.filters;
+
+            // Handle redirection to page 1 if needed
+            if (data.shouldRedirectToPage1) {
+                const params = new URLSearchParams(window.location.search);
+                params.set('page', '1');
+                goto(`${window.location.pathname}?${params.toString()}`, { replaceState: true });
+            }
         }
     });
+
+    // Update URL when filters change
+    function updateURL() {
+        if (!browser) return;
+        
+        const params = new URLSearchParams();
+        
+        // Only add parameters that are not default values
+        if (filters.type.value !== 'all') {
+            params.set('type', filters.type.value);
+        }
+        
+        if (filters.dateRange.from && filters.dateRange.from !== defaultFromDate) {
+            params.set('dateFrom', filters.dateRange.from);
+        }
+        
+        if (filters.dateRange.to) {
+            params.set('dateTo', filters.dateRange.to);
+        }
+        
+        if (filters.categories.selected.length > 0) {
+            params.set('categories', filters.categories.selected.join(','));
+        }
+        
+        if (filters.categories.isNegative) {
+            params.set('excludeCategories', 'true');
+        }
+        
+        if (filters.subcategories.selected.length > 0) {
+            params.set('subcategories', filters.subcategories.selected.join(','));
+        }
+        
+        if (filters.search.value) {
+            params.set('search', filters.search.value);
+        }
+        
+        if (filters.search.isNegative) {
+            params.set('excludeSearch', 'true');
+        }
+        
+        if (filters.sort.column !== 'date' || filters.sort.direction !== 'desc') {
+            params.set('sortColumn', filters.sort.column || 'date');
+            params.set('sortDirection', filters.sort.direction);
+        }
+
+        if (currentPage > 1) {
+            params.set('page', currentPage.toString());
+        }
+
+        // Update URL without reloading the page
+        const newURL = window.location.pathname + (params.toString() ? `?${params.toString()}` : '');
+        window.history.replaceState({}, '', newURL);
+    }
 
     let isLoading = $state(false);
     let abortController: AbortController | null = $state(null);
@@ -145,25 +203,41 @@
         return {};
     }
 
+    function handleFilterChange() {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => {
+            // Reset to page 1 when filters change
+            currentPage = 1;
+            const filterForm = document.getElementById('filter-form') as HTMLFormElement;
+            if (filterForm) {
+                const pageInput = filterForm.querySelector('input[name="page"]') as HTMLInputElement;
+                if (pageInput) {
+                    pageInput.value = '1';
+                }
+                filterForm.requestSubmit();
+            }
+        }, 300);
+    }
+
     function changePage(page: number) {
+        // Validate page number
+        if (page < 1 || page > totalPages) {
+            return;
+        }
+        
+        currentPage = page;
         const filterForm = document.getElementById('filter-form') as HTMLFormElement;
-        const pageInput = filterForm?.querySelector('input[name="page"]') as HTMLInputElement;
-        if (pageInput) {
-            pageInput.value = page.toString();
+        if (filterForm) {
+            const pageInput = filterForm.querySelector('input[name="page"]') as HTMLInputElement;
+            if (pageInput) {
+                pageInput.value = page.toString();
+            }
             filterForm.requestSubmit();
         }
     }
 
     function handleKeydown(e: KeyboardEvent) {
         if (e.key === 'Escape') editingTransaction = null;
-    }
-
-    function handleFilterChange() {
-        clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(() => {
-            const filterForm = document.getElementById('filter-form') as HTMLFormElement;
-            filterForm?.requestSubmit();
-        }, 300);
     }
 
     function toggleCategory(categoryId: string) {
@@ -197,12 +271,13 @@
     function clearFilters() {
         filters = {
             type: { value: 'all' },
-            dateRange: { from: '', to: '' },
+            dateRange: { from: defaultFromDate || '', to: '' },
             categories: { selected: [], isNegative: false },
             subcategories: { selected: [] },
             search: { value: '', isNegative: false },
             sort: { column: 'date', direction: 'desc' }
         };
+        currentPage = 1;
         handleFilterChange();
     }
 
@@ -217,6 +292,63 @@
         }
         handleFilterChange();
     }
+
+    function handleTransactionClick(transaction: Transaction) {
+        // Preserve current URL parameters for the return URL
+        const currentUrl = window.location.pathname + window.location.search;
+        goto(`/transactions/${transaction.id}?returnUrl=${encodeURIComponent(currentUrl)}`);
+    }
+
+    // Update data effect
+    $effect(() => {
+        if (data.transactions) {
+            currentPage = data.currentPage;
+        }
+    });
+
+    // Custom form enhancement for GET requests
+    function enhanceGetForm(node: HTMLFormElement) {
+        async function handleSubmit(event: Event) {
+            event.preventDefault();
+            isLoading = true;
+
+            try {
+                // Get the form data
+                const formData = new FormData(node);
+                const searchParams = new URLSearchParams();
+                
+                // Convert FormData to URLSearchParams
+                for (const [key, value] of formData) {
+                    if (value) {
+                        searchParams.append(key, value.toString());
+                    }
+                }
+
+                // Validate page number against total pages
+                const pageNum = parseInt(searchParams.get('page') || '1');
+                if (pageNum > totalPages) {
+                    searchParams.set('page', '1');
+                    currentPage = 1;
+                }
+
+                // Update the URL
+                const newURL = `${window.location.pathname}?${searchParams.toString()}`;
+                await goto(newURL, { keepFocus: true });
+            } catch (error) {
+                console.error('Error submitting form:', error);
+            } finally {
+                isLoading = false;
+            }
+        }
+
+        node.addEventListener('submit', handleSubmit);
+
+        return {
+            destroy() {
+                node.removeEventListener('submit', handleSubmit);
+            }
+        };
+    }
 </script>
 
 <div class="transactions-container">
@@ -229,27 +361,27 @@
 
     <form 
         id="filter-form"
-        method="POST"
+        method="GET"
+        action="/transactions"
         class:hidden={!isFiltersVisible}
-        use:enhance={() => {
-            isLoading = true;
-            
-            return async ({ result }) => {
-                isLoading = false;
-                if (result.type === 'success') {
-                    // Update the data but preserve the filter state
-                    data = {
-                        ...data,
-                        transactions: result.data.transactions,
-                        totalPages: result.data.totalPages,
-                        currentPage: result.data.currentPage
-                    };
-                }
-            };
-        }}
+        use:enhanceGetForm
     >
-        <input type="hidden" name="filters" value={JSON.stringify(filters)} />
-        <input type="hidden" name="page" value="1" />
+        {#each Object.entries(filters) as [key, value]}
+            {#if typeof value === 'object' && value !== null}
+                {#each Object.entries(value) as [subKey, subValue]}
+                    {#if Array.isArray(subValue)}
+                        {#each subValue as item}
+                            <input type="hidden" name={`${key}.${subKey}[]`} value={item} />
+                        {/each}
+                    {:else if typeof subValue === 'boolean'}
+                        <input type="hidden" name={`${key}.${subKey}`} value={subValue ? 'true' : 'false'} />
+                    {:else}
+                        <input type="hidden" name={`${key}.${subKey}`} value={subValue?.toString() || ''} />
+                    {/if}
+                {/each}
+            {/if}
+        {/each}
+        <input type="hidden" name="page" value={currentPage} />
         
         <div class="filters">
             <div class="filter-header">
@@ -383,33 +515,37 @@
             {#if currentPage > 3}
                 <span>...</span>
             {/if}
-            <button 
-                disabled={currentPage === 1}
-                onclick={() => changePage(currentPage - 1)}
-            >
-                Previous
-            </button>
-            <button 
-                class:active={currentPage === currentPage}
-                onclick={() => changePage(currentPage)}
-            >
-                {currentPage}
-            </button>
-            <button 
-                disabled={currentPage === totalPages}
-                onclick={() => changePage(currentPage + 1)}
-            >
-                Next
-            </button>
+            {#if currentPage > 1}
+                <button 
+                    onclick={() => changePage(currentPage - 1)}
+                >
+                    Previous
+                </button>
+            {/if}
+            {#if currentPage > 1 && currentPage < totalPages}
+                <button 
+                    class="active"
+                >
+                    {currentPage}
+                </button>
+            {/if}
+            {#if currentPage < totalPages}
+                <button 
+                    onclick={() => changePage(currentPage + 1)}
+                >
+                    Next
+                </button>
+            {/if}
             {#if currentPage < totalPages - 2}
                 <span>...</span>
             {/if}
-            <button 
-                disabled={currentPage === totalPages}
-                onclick={() => changePage(totalPages)}
-            >
-                {totalPages}
-            </button>
+            {#if currentPage !== totalPages && totalPages > 1}
+                <button 
+                    onclick={() => changePage(totalPages)}
+                >
+                    {totalPages}
+                </button>
+            {/if}
         </div>
     {/if}   
 
@@ -507,7 +643,7 @@
                                     <td>
                                         <button 
                                             class="description-button" 
-                                            onclick={() => startEditing(transaction)}
+                                            onclick={() => handleTransactionClick(transaction)}
                                             type="button"
                                         >
                                             {transaction.user_description || transaction.description}

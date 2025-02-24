@@ -41,33 +41,6 @@ const TRANSACTION_SELECT = `
 const PAGE_SIZE = 20;
 const DEFAULT_FROM_DATE = '2024-12-01';
 
-export const load: PageServerLoad = async ({ depends, locals: { supabase } }) => {
-    depends('supabase:transactions')
-
-    return await measureAsync('transactions-page-load', async () => {
-        const [{ data: categories }, { data: transactions, count }] = await Promise.all([
-            supabase
-                .from('categories')
-                .select('id, name, subcategories (id, category_id, name)')
-                .order('name'),
-            supabase
-                .from('transactions')
-                .select(TRANSACTION_SELECT, { count: 'exact' })
-                .gte('operation_date', DEFAULT_FROM_DATE)
-                .order('operation_date', { ascending: false })
-                .range(0, PAGE_SIZE - 1)
-        ]);
-
-        return {
-            transactions: transactions as Transaction[] ?? [],
-            totalPages: Math.ceil((count ?? 0) / PAGE_SIZE),
-            currentPage: 1,
-            categories: categories ?? [],
-            defaultFromDate: DEFAULT_FROM_DATE
-        };
-    });
-}
-
 interface FilterOptions {
     type: { value: 'all' | 'income' | 'expense' };
     categories: { selected: string[]; isNegative: boolean };
@@ -78,6 +51,164 @@ interface FilterOptions {
         column: 'date' | 'amount' | 'description' | null;
         direction: 'asc' | 'desc';
     };
+}
+
+function parseFilters(searchParams: URLSearchParams): FilterOptions {
+    const filters: FilterOptions = {
+        type: { value: searchParams.get('type.value') as FilterOptions['type']['value'] || 'all' },
+        dateRange: {
+            from: searchParams.get('dateRange.from') || DEFAULT_FROM_DATE,
+            to: searchParams.get('dateRange.to') || ''
+        },
+        categories: {
+            selected: searchParams.getAll('categories.selected[]') || [],
+            isNegative: searchParams.get('categories.isNegative') === 'true'
+        },
+        subcategories: {
+            selected: searchParams.getAll('subcategories.selected[]') || []
+        },
+        search: {
+            value: searchParams.get('search.value') || '',
+            isNegative: searchParams.get('search.isNegative') === 'true'
+        },
+        sort: {
+            column: (searchParams.get('sort.column') || 'date') as FilterOptions['sort']['column'],
+            direction: (searchParams.get('sort.direction') || 'desc') as 'asc' | 'desc'
+        }
+    };
+    return filters;
+}
+
+export const load: PageServerLoad = async ({ depends, locals: { supabase }, url }) => {
+    depends('supabase:transactions')
+
+    return await measureAsync('transactions-page-load', async () => {
+        const filters = parseFilters(url.searchParams);
+
+        // Start with base query for count
+        let query = supabase
+            .from('transactions')
+            .select(TRANSACTION_SELECT, { count: 'exact' });
+
+        // Apply filters
+        const fromDate = filters.dateRange.from || DEFAULT_FROM_DATE;
+        query = query.gte('operation_date', fromDate);
+        if (filters.dateRange.to) {
+            query = query.lte('operation_date', filters.dateRange.to);
+        }
+
+        if (filters.type.value !== 'all') {
+            if (filters.type.value === 'income') {
+                query = query.gte('categories.amount', 0.01);
+            } else {
+                query = query.lt('categories.amount', 0);
+            }
+        }
+
+        if (filters.categories.selected.length > 0) {
+            const categoryIds = filters.categories.selected.map(Number);
+            if (filters.categories.isNegative) {
+                query = query.not('categories.category_id', 'in', `(${categoryIds.join(',')})`);
+            } else {
+                query = query.in('categories.category_id', categoryIds);
+            }
+        }
+
+        if (filters.subcategories.selected.length > 0) {
+            const subcategoryIds = filters.subcategories.selected.map(Number);
+            query = query.in('categories.subcategory_id', subcategoryIds);
+        }
+
+        if (filters.search.value) {
+            const searchValue = `%${filters.search.value.replace(/[%_]/g, '')}%`;
+            if (filters.search.isNegative) {
+                query = query.or(
+                    `description.not.ilike.${searchValue}`
+                ).or(
+                    `user_description.is.null, user_description.not.ilike.${searchValue}`
+                );
+            } else {
+                query = query.or(`description.ilike.${searchValue},user_description.ilike.${searchValue}`);
+            }
+        }
+
+        // First get the total count with the current filters
+        const { count } = await query;
+        const totalPages = Math.ceil((count ?? 0) / PAGE_SIZE);
+
+        // Validate and adjust page number if necessary
+        let page = Math.max(1, parseInt(url.searchParams.get('page') || '1'));
+        if (page > totalPages) {
+            page = 1;
+        }
+
+        const offset = (page - 1) * PAGE_SIZE;
+
+        // Apply sorting
+        if (filters.sort?.column === 'amount') {
+            query = query.order('operation_date', { ascending: false });
+        } else {
+            const ascending = filters.sort?.direction === 'asc';
+            switch (filters.sort?.column) {
+                case 'date':
+                    query = query.order('operation_date', { ascending });
+                    break;
+                case 'description':
+                    query = query.order('user_description', { ascending, nullsLast: true })
+                            .order('description', { ascending });
+                    break;
+                default:
+                    query = query.order('operation_date', { ascending: false });
+            }
+        }
+
+        // Fetch data with pagination
+        const [{ data: categories }, { data: transactions, error }] = await Promise.all([
+            supabase
+                .from('categories')
+                .select('id, name, subcategories (id, category_id, name)')
+                .order('name'),
+            query.range(offset, offset + PAGE_SIZE - 1)
+        ]);
+
+        if (error) {
+            console.error('Query error:', error);
+            return {
+                error: 'Failed to fetch transactions',
+                transactions: [],
+                totalPages: 0,
+                currentPage: 1,
+                categories: categories ?? [],
+                defaultFromDate: DEFAULT_FROM_DATE,
+                filters,
+                shouldRedirectToPage1: page > 1
+            };
+        }
+
+        // Handle amount sorting separately
+        let finalTransactions = transactions;
+        if (filters.sort?.column === 'amount' && finalTransactions) {
+            const sortedTransactions = finalTransactions.map(transaction => ({
+                ...transaction,
+                totalAmount: transaction.categories.reduce((sum, tc) => sum + tc.amount, 0)
+            })).sort((a, b) => {
+                return filters.sort.direction === 'asc'
+                    ? a.totalAmount - b.totalAmount
+                    : b.totalAmount - a.totalAmount;
+            });
+            finalTransactions = sortedTransactions;
+        }
+
+        return {
+            transactions: finalTransactions as Transaction[] ?? [],
+            totalPages,
+            currentPage: page,
+            categories: categories ?? [],
+            defaultFromDate: DEFAULT_FROM_DATE,
+            filters,
+            shouldRedirectToPage1: page > totalPages
+        };
+    });
 }
 
 export const actions = {
