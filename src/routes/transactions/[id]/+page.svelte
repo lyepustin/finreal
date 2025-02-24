@@ -13,6 +13,19 @@
     $inspect(categories, 'Initial categories');
     $inspect(transaction, 'Initial transaction');
 
+    // Store the initial transaction amount as a fixed value
+    let transactionAmount = $state(0);
+
+    // Initialize transaction amount once when component loads
+    $effect(() => {
+        // Only run this effect once when the transaction is first loaded
+        if (transaction?.categories?.length && transactionAmount === 0) {
+            const total = transaction.categories.reduce((sum, tc) => sum + (Number(tc.amount) || 0), 0);
+            transactionAmount = Number(total.toFixed(2));
+            $inspect(transactionAmount, 'Initial transaction amount set');
+        }
+    });
+
     // Initialize description and categories only if transaction exists
     let selectedDescription = $state('');
     let selectedCategories = $state([]);
@@ -20,16 +33,26 @@
 
     $effect(() => {
         if (transaction) {
+            $inspect(transaction, 'Transaction in initialization effect');
             selectedDescription = transaction.user_description || transaction.description || '';
-            selectedCategories = transaction.categories?.map(tc => ({
-                categoryId: tc.category.id,
-                subcategoryId: tc.subcategory?.id || categories.find(c => c.id === tc.category.id)?.subcategories?.[0]?.id || null,
-                amount: tc.amount
-            })) || [{
-                categoryId: categories?.[0]?.id || 0,
-                subcategoryId: categories?.[0]?.subcategories?.[0]?.id || null,
-                amount: 0
-            }];
+            
+            // Initialize categories with proper amounts
+            if (transaction.categories?.length) {
+                selectedCategories = transaction.categories.map(tc => ({
+                    categoryId: tc.category.id,
+                    subcategoryId: tc.subcategory?.id || categories.find(c => c.id === tc.category.id)?.subcategories?.[0]?.id || null,
+                    amount: Number(tc.amount) || 0
+                }));
+                $inspect(selectedCategories, 'Initialized categories from transaction');
+            } else {
+                // If no categories, create one with the full amount
+                selectedCategories = [{
+                    categoryId: categories?.[0]?.id || 0,
+                    subcategoryId: categories?.[0]?.subcategories?.[0]?.id || null,
+                    amount: transactionAmount
+                }];
+                $inspect(selectedCategories, 'Initialized with single category');
+            }
         }
     });
 
@@ -44,6 +67,32 @@
 
     let isLoading = $state(false);
     let errorMessage = $state<string | null>(null);
+
+    // Track changes in selected categories for debugging
+    $effect(() => {
+        $inspect(selectedCategories, 'Selected categories changed');
+        $inspect(transactionAmount, 'Current transaction amount');
+    });
+
+    // Function to distribute amount evenly among categories
+    function distributeAmount() {
+        if (!selectedCategories?.length) return;
+        
+        // Calculate per-category amount, handling negative values
+        let amountPerCategory = Number((transactionAmount / selectedCategories.length).toFixed(2));
+        if (isNaN(amountPerCategory)) amountPerCategory = 0;
+        
+        // Calculate remainder considering negative values
+        const totalDistributed = amountPerCategory * (selectedCategories.length - 1);
+        let firstCategoryAmount = Number((transactionAmount - totalDistributed).toFixed(2));
+        if (isNaN(firstCategoryAmount)) firstCategoryAmount = 0;
+        
+        // Update all categories with their new amounts
+        selectedCategories = selectedCategories.map((cat, index) => ({
+            ...cat,
+            amount: index === 0 ? firstCategoryAmount : amountPerCategory
+        }));
+    }
 
     async function handleSubmit() {
         if (!transaction) return;
@@ -79,8 +128,11 @@
     }
 
     function updateCategoryAmount(index: number, amount: number) {
-        selectedCategories[index].amount = amount;
-        selectedCategories = [...selectedCategories]; // Trigger reactivity
+        const validAmount = Number(amount);
+        if (!isNaN(validAmount)) {
+            selectedCategories[index].amount = validAmount;
+            selectedCategories = [...selectedCategories]; // Trigger reactivity
+        }
     }
 
     function updateCategory(index: number, categoryId: number) {
@@ -116,9 +168,11 @@
 
     function addCategory() {
         if (!categories?.length) return;
+        
         const firstCategory = categories[0];
         const firstSubcategory = firstCategory.subcategories?.[0];
         
+        // Add new category with explicit 0 amount
         selectedCategories = [
             ...selectedCategories,
             {
@@ -127,10 +181,18 @@
                 amount: 0
             }
         ];
+
+        // Distribute amounts evenly
+        distributeAmount();
     }
 
     function removeCategory(index: number) {
         selectedCategories = selectedCategories.filter((_, i) => i !== index);
+        
+        // Redistribute amounts after removing a category
+        if (selectedCategories.length > 0) {
+            distributeAmount();
+        }
     }
 </script>
 
