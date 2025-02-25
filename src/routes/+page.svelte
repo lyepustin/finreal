@@ -97,7 +97,6 @@
     <div class="mt-3">
       <p class="text-gray-500">Visit <a class="font-medium text-blue-600 hover:text-blue-500 dark:text-blue-500 dark:hover:text-blue-400" href="https://svelte.dev/docs/kit">svelte.dev/docs/kit</a> to read the documentation</p>
       <p class="text-gray-500 mt-2">
-        <a class="inline-flex gap-x-2 text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200" href="/private">Private Area</a> | 
         <a class="inline-flex gap-x-2 text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200" href="/transactions">Transactions</a> |
         <a class="inline-flex gap-x-2 text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200" href="/analytics">Analytics</a>
       </p>
