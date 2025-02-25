@@ -1,6 +1,6 @@
 import type { Category } from '$lib/types';
 import { error } from '@sveltejs/kit';
-import { supabase } from '$lib/supabase';
+import { supabase } from '$lib/db/supabase';
 
 export async function getCategories(): Promise<Category[]> {
     try {
@@ -9,19 +9,19 @@ export async function getCategories(): Promise<Category[]> {
             .select(`
                 id,
                 name,
-                subcategories (
+                subcategories:subcategories (
                     id,
+                    category_id,
                     name
                 )
-            `)
-            .order('name');
+            `);
 
         if (err) {
             console.error('Error fetching categories:', err);
             throw error(500, 'Failed to fetch categories');
         }
 
-        return categories || [];
+        return categories as unknown as Category[];
     } catch (err) {
         console.error('Error in getCategories:', err);
         throw error(500, 'Internal server error');

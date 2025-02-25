@@ -28,7 +28,7 @@
 
     // Initialize description and categories only if transaction exists
     let selectedDescription = $state('');
-    let selectedCategories = $state([]);
+    let selectedCategories = $state<{ categoryId: number; subcategoryId: number | null; amount: number }[]>([]);
     let selectedCategoryId = $state<number | null>(null);
 
     $effect(() => {
@@ -196,22 +196,22 @@
     }
 </script>
 
-{#if !transaction || !categories}
+{#if !transaction || !categories || categories.length === 0}
     <div class="loading">Loading transaction data...</div>
 {:else if errorMessage}
     <div class="error-message">
         {errorMessage}
-        <button class="secondary" onclick={handleCancel}>Go Back</button>
+        <button class="secondary" on:click={handleCancel}>Go Back</button>
     </div>
 {:else}
     <div class="edit-transaction">
         <div class="header">
             <h2>Edit Transaction</h2>
             <div class="actions">
-                <button class="secondary" onclick={handleCancel}>Back</button>
+                <button class="secondary" on:click={handleCancel}>Back</button>
                 <button 
                     class="primary" 
-                    onclick={handleSubmit}
+                    on:click={handleSubmit}
                     disabled={isLoading}
                 >
                     {isLoading ? 'Saving...' : 'Save Changes'}
@@ -236,7 +236,7 @@
                     <h3>Categories</h3>
                     <button 
                         class="secondary small" 
-                        onclick={addCategory}
+                        on:click={addCategory}
                         disabled={isLoading}
                     >
                         Add Category
@@ -248,7 +248,7 @@
                         <div class="category-selects">
                             <select
                                 bind:value={category.categoryId}
-                                onchange={() => updateCategory(index, category.categoryId)}
+                                on:change={() => updateCategory(index, category.categoryId)}
                                 disabled={isLoading}
                             >
                                 {#each categories as cat}
@@ -259,7 +259,7 @@
                             {#if categories?.find(c => c.id === category.categoryId)?.subcategories?.length}
                                 <select
                                     bind:value={category.subcategoryId}
-                                    onchange={() => updateSubcategory(index, category.subcategoryId)}
+                                    on:change={() => updateSubcategory(index, category.subcategoryId)}
                                     disabled={isLoading}
                                 >
                                     {#each categories.find(c => c.id === category.categoryId).subcategories as subcat}
@@ -272,14 +272,14 @@
                                 type="number"
                                 step="0.01"
                                 bind:value={category.amount}
-                                onchange={() => updateCategoryAmount(index, category.amount)}
+                                on:change={() => updateCategoryAmount(index, category.amount)}
                                 disabled={isLoading}
                             />
                         </div>
 
                         <button 
                             class="danger small"
-                            onclick={() => removeCategory(index)}
+                            on:click={() => removeCategory(index)}
                             disabled={selectedCategories.length === 1 || isLoading}
                         >
                             Remove
