@@ -1,10 +1,16 @@
 import { fontFamily } from "tailwindcss/defaultTheme";
 import type { Config } from "tailwindcss";
+// @ts-expect-error - Module can only be default-imported using esModuleInterop
 import tailwindcssAnimate from "tailwindcss-animate";
+// @ts-expect-error - Preline doesn't have TypeScript types
+import prelinePlugin from "preline/plugin";
 
 const config: Config = {
 	darkMode: ["class"],
-	content: ["./src/**/*.{html,js,svelte,ts}"],
+	content: [
+		"./src/**/*.{html,js,svelte,ts}",
+		"./node_modules/preline/dist/*.js",
+	],
 	safelist: ["dark"],
 	theme: {
 		container: {
@@ -90,7 +96,10 @@ const config: Config = {
       		},
 		},
 	},
-	plugins: [tailwindcssAnimate],
+	plugins: [
+		tailwindcssAnimate,
+		prelinePlugin,
+	],
 };
 
 export default config;

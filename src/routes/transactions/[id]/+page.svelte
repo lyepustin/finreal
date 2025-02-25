@@ -56,13 +56,11 @@
         }
     });
 
-    // Create a derived value for each category's subcategories
+    // Create a function to get subcategories for a category
     function getCategorySubcategories(categoryId: number) {
-        let result = $derived(() => {
-            const category = categories?.find(c => c.id === categoryId);
-            return category?.subcategories || [];
-        });
-        return result;
+        // Return the subcategories directly without using $derived inside the function
+        const category = categories?.find(c => c.id === categoryId);
+        return category?.subcategories || [];
     }
 
     let isLoading = $state(false);
@@ -201,17 +199,17 @@
 {:else if errorMessage}
     <div class="error-message">
         {errorMessage}
-        <button class="secondary" on:click={handleCancel}>Go Back</button>
+        <button class="secondary" onclick={handleCancel}>Go Back</button>
     </div>
 {:else}
     <div class="edit-transaction">
         <div class="header">
             <h2>Edit Transaction</h2>
             <div class="actions">
-                <button class="secondary" on:click={handleCancel}>Back</button>
+                <button class="secondary" onclick={handleCancel}>Back</button>
                 <button 
                     class="primary" 
-                    on:click={handleSubmit}
+                    onclick={handleSubmit}
                     disabled={isLoading}
                 >
                     {isLoading ? 'Saving...' : 'Save Changes'}
@@ -236,7 +234,7 @@
                     <h3>Categories</h3>
                     <button 
                         class="secondary small" 
-                        on:click={addCategory}
+                        onclick={addCategory}
                         disabled={isLoading}
                     >
                         Add Category
@@ -248,7 +246,7 @@
                         <div class="category-selects">
                             <select
                                 bind:value={category.categoryId}
-                                on:change={() => updateCategory(index, category.categoryId)}
+                                onchange={() => updateCategory(index, category.categoryId)}
                                 disabled={isLoading}
                             >
                                 {#each categories as cat}
@@ -259,7 +257,7 @@
                             {#if categories?.find(c => c.id === category.categoryId)?.subcategories?.length}
                                 <select
                                     bind:value={category.subcategoryId}
-                                    on:change={() => updateSubcategory(index, category.subcategoryId)}
+                                    onchange={() => updateSubcategory(index, category.subcategoryId)}
                                     disabled={isLoading}
                                 >
                                     {#each categories.find(c => c.id === category.categoryId).subcategories as subcat}
@@ -272,14 +270,14 @@
                                 type="number"
                                 step="0.01"
                                 bind:value={category.amount}
-                                on:change={() => updateCategoryAmount(index, category.amount)}
+                                onchange={() => updateCategoryAmount(index, category.amount)}
                                 disabled={isLoading}
                             />
                         </div>
 
                         <button 
                             class="danger small"
-                            on:click={() => removeCategory(index)}
+                            onclick={() => removeCategory(index)}
                             disabled={selectedCategories.length === 1 || isLoading}
                         >
                             Remove

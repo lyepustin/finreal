@@ -51,6 +51,7 @@
 		"d3-array": "^3.2.4",
 		"d3-scale": "^4.0.2",
 		"layercake": "^8.4.2",
-		"layerchart": "^0.99.2"
+		"layerchart": "^0.99.2",
+		"preline": "^2.7.0"
 	}
 }
