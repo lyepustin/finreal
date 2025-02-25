@@ -24,6 +24,7 @@ export type TransactionCategory = {
 export type Category = {
     id: number
     name: string
+    subcategories: SubCategory[]
 }
 
 export type SubCategory = {

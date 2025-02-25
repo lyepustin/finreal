@@ -1,20 +1,13 @@
-import { json } from '@sveltejs/kit'
+import { error, json } from '@sveltejs/kit'
 import type { RequestHandler } from './$types'
-import { measureAsync } from '$lib/utils/performance'
+import { handleTransactionDescriptionUpdate } from '$lib/api/transactions'
 
-export const PATCH: RequestHandler = async ({ params, request, locals: { supabase } }) => {
-    const { user_description } = await request.json()
-    
-    const { error } = await measureAsync('update-transaction-description', () =>
-        supabase
-            .from('transactions')
-            .update({ user_description })
-            .eq('id', params.id)
-    )
-
-    if (error) {
-        return json({ error: error.message }, { status: 400 })
+export const PATCH: RequestHandler = async ({ params, request }) => {
+    const transactionId = parseInt(params.id)
+    if (isNaN(transactionId)) {
+        throw error(400, 'Invalid transaction ID')
     }
 
-    return json({ success: true })
+    const { user_description } = await request.json()
+    return json(await handleTransactionDescriptionUpdate(transactionId, user_description))
 } 

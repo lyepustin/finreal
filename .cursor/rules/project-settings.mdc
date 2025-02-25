@@ -3,6 +3,11 @@ description:
 globs: 
 ---
 ---
+description: git
+globs: 
+---
+always sort github commit messages
+---
 description: env
 globs: 
 ---
