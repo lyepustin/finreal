@@ -91,3 +91,19 @@ export const DEFAULT_ANALYTICS_FILTER_STATE: AnalyticsFilterState = {
         value: 'month'
     }
 }; 
+
+export interface DateRangeFilter {
+    from: string;
+    to: string;
+}
+
+export interface CategoryFilters {
+    dateRange: DateRangeFilter;
+}
+
+export const DEFAULT_CATEGORY_FILTERS: CategoryFilters = {
+    dateRange: {
+        from: new Date(new Date().setMonth(new Date().getMonth() - 1)).toISOString().split('T')[0], // Last month
+        to: new Date().toISOString().split('T')[0] // Today
+    }
+}; 

@@ -79,6 +79,7 @@
         <a class="font-medium text-blue-600 sm:py-6 dark:text-blue-500" href="/" onclick={collapseMenu} aria-current="page">Home</a>
         <a class="font-medium text-gray-500 hover:text-gray-400 sm:py-6 dark:text-gray-400 dark:hover:text-gray-500" href="/transactions" onclick={collapseMenu}>Transactions</a>
         <a class="font-medium text-gray-500 hover:text-gray-400 sm:py-6 dark:text-gray-400 dark:hover:text-gray-500" href="/analytics" onclick={collapseMenu}>Analytics</a>
+		<a class="font-medium text-gray-500 hover:text-gray-400 sm:py-6 dark:text-gray-400 dark:hover:text-gray-500" href="/categories" onclick={collapseMenu}>Categories</a>
         
         {#if session}
           <button 
