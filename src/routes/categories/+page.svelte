@@ -16,25 +16,25 @@
     
     // Initialize default dates if not provided
     $effect(() => {
-        if (!browser) return;
+        if (!browser || isUpdating) return;
         
-        if (!filters.dateRange.from || !filters.dateRange.to) {
-            const now = new Date();
-            const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-            const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-            
-            const defaultFilters = {
-                ...filters,
-                dateRange: {
-                    from: filters.dateRange.from || firstDayOfMonth.toISOString().split('T')[0],
-                    to: filters.dateRange.to || lastDayOfMonth.toISOString().split('T')[0]
-                }
-            };
-            
-            if (!isEqual(filters, defaultFilters)) {
-                filters = defaultFilters;
-                updateURL();
+        const now = new Date();
+        const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        
+        const defaultFilters = {
+            ...filters,
+            dateRange: {
+                from: filters.dateRange.from || firstDayOfMonth.toISOString().split('T')[0],
+                to: filters.dateRange.to || lastDayOfMonth.toISOString().split('T')[0]
             }
+        };
+        
+        if (!isEqual(filters, defaultFilters)) {
+            isUpdating = true;
+            filters = defaultFilters;
+            updateURL();
+            isUpdating = false;
         }
     });
     
