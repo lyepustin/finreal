@@ -103,7 +103,15 @@ export interface CategoryFilters {
 
 export const DEFAULT_CATEGORY_FILTERS: CategoryFilters = {
     dateRange: {
-        from: new Date(new Date().setMonth(new Date().getMonth() - 1)).toISOString().split('T')[0], // Last month
-        to: new Date().toISOString().split('T')[0] // Today
+        from: (() => {
+            const now = new Date();
+            return new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+        })(),
+        to: (() => {
+            const now = new Date();
+            // Get the last day of the current month
+            const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+            return lastDay.toISOString().split('T')[0];
+        })()
     }
 }; 

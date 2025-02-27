@@ -50,12 +50,14 @@
 	"dependencies": {
 		"@supabase/ssr": "^0.5.2",
 		"@supabase/supabase-js": "^2.48.1",
+		"@types/lodash": "^4.17.15",
 		"chart.js": "^4.4.8",
 		"d3-array": "^3.2.4",
 		"d3-scale": "^4.0.2",
 		"date-fns": "^4.1.0",
 		"layercake": "^8.4.2",
 		"layerchart": "^0.99.2",
+		"lodash": "^4.17.21",
 		"preline": "^2.7.0"
 	}
 }

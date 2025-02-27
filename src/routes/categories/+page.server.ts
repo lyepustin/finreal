@@ -1,15 +1,18 @@
 import type { PageServerLoad } from './$types'
 import { measureAsync } from '$lib/utils/performance';
 import type { CategoryFilters } from '$lib/types/filters';
-import { DEFAULT_CATEGORY_FILTERS } from '$lib/types/filters';
 
 const PAGE_SIZE = 20;
 
 function parseFilters(searchParams: URLSearchParams): CategoryFilters {
+    // Get dates from URL parameters
+    const fromParam = searchParams.get('dateFrom');
+    const toParam = searchParams.get('dateTo');
+
     return {
-        dateRange: {
-            from: searchParams.get('dateFrom') || DEFAULT_CATEGORY_FILTERS.dateRange.from,
-            to: searchParams.get('dateTo') || DEFAULT_CATEGORY_FILTERS.dateRange.to
+        dateRange: { 
+            from: fromParam || '',
+            to: toParam || ''
         }
     };
 }
@@ -39,9 +42,12 @@ export const load: PageServerLoad = async ({ depends, locals: { supabase }, url 
                 subcategories (
                     id,
                     name,
-                    transactions:transaction_categories (
+                    transactions:transaction_categories!inner (
                         id,
-                        amount
+                        amount,
+                        transaction:transactions!inner (
+                            operation_date
+                        )
                     )
                 )
             `);
@@ -50,6 +56,12 @@ export const load: PageServerLoad = async ({ depends, locals: { supabase }, url 
         query.gte('transactions.transaction.operation_date', filters.dateRange.from);
         if (filters.dateRange.to) {
             query.lte('transactions.transaction.operation_date', filters.dateRange.to);
+        }
+
+        // Apply the same date range filter to subcategory transactions
+        query.gte('subcategories.transactions.transaction.operation_date', filters.dateRange.from);
+        if (filters.dateRange.to) {
+            query.lte('subcategories.transactions.transaction.operation_date', filters.dateRange.to);
         }
 
         // Fetch the data
@@ -77,10 +89,12 @@ export const load: PageServerLoad = async ({ depends, locals: { supabase }, url 
             // Process subcategories
             const subcategories = (category.subcategories || []).map(sub => {
                 const subTotal = (sub.transactions || []).reduce((sum, tc) => sum + (tc.amount || 0), 0);
+                const transactionCount = (sub.transactions || []).length;
                 return {
                     id: sub.id,
                     name: sub.name,
-                    total: subTotal
+                    total: subTotal,
+                    transactionCount
                 };
             }).sort((a, b) => Math.abs(b.total) - Math.abs(a.total));
 
@@ -93,8 +107,15 @@ export const load: PageServerLoad = async ({ depends, locals: { supabase }, url 
             };
         }) || [];
 
-        // Sort categories by total amount
-        const sortedCategories = processedCategories.sort((a, b) => Math.abs(b.total) - Math.abs(a.total));
+        // Sort categories: first income (highest to lowest), then expenses (highest to lowest)
+        const sortedCategories = processedCategories.sort((a, b) => {
+            // If both are income or both are expenses, sort by absolute value
+            if ((a.total >= 0 && b.total >= 0) || (a.total < 0 && b.total < 0)) {
+                return Math.abs(b.total) - Math.abs(a.total);
+            }
+            // If one is income and one is expense, income comes first
+            return b.total - a.total;
+        });
 
         // Handle pagination
         const totalPages = Math.ceil(sortedCategories.length / PAGE_SIZE);

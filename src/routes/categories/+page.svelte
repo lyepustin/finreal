@@ -6,12 +6,37 @@
     import { browser } from '$app/environment'
     import TransactionPagination from '$lib/components/TransactionPagination.svelte'
     import DateRangeFilter from '$lib/components/DateRangeFilter.svelte'
+    import { isEqual } from 'lodash'
 
     let { data } = $props<{ data: PageData }>();
 
     let currentPage = $state(data.currentPage);
     let filters = $state<CategoryFilters>(data.filters);
     let isUpdating = $state(false);
+    
+    // Initialize default dates if not provided
+    $effect(() => {
+        if (!browser) return;
+        
+        if (!filters.dateRange.from || !filters.dateRange.to) {
+            const now = new Date();
+            const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+            const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+            
+            const defaultFilters = {
+                ...filters,
+                dateRange: {
+                    from: filters.dateRange.from || firstDayOfMonth.toISOString().split('T')[0],
+                    to: filters.dateRange.to || lastDayOfMonth.toISOString().split('T')[0]
+                }
+            };
+            
+            if (!isEqual(filters, defaultFilters)) {
+                filters = defaultFilters;
+                updateURL();
+            }
+        }
+    });
     
     const { categoriesData, totalPages, categories: allCategories } = $derived({
         categoriesData: data.categoriesData,
@@ -93,7 +118,7 @@
         {#if categoriesData?.length}
             <!-- Card-based category list -->
             <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {#each categoriesData as categoryData}
+                {#each categoriesData.filter(category => category.total !== 0) as categoryData}
                     <!-- Category Card -->
                     <div 
                         class="group flex flex-col h-full bg-white border border-gray-200 shadow-sm rounded-xl hover:shadow-md transition dark:bg-slate-900 dark:border-gray-700 dark:shadow-slate-700/[.7]"
@@ -111,35 +136,23 @@
                                 </h3>
                                 {#if categoryData.total < 0}
                                     <span class="text-xl font-semibold text-red-600 dark:text-red-400">
-                                        {categoryData.total.toFixed(2)}
+                                        {categoryData.total.toFixed(2)} €
                                     </span>
                                 {:else}
                                     <span class="text-xl font-semibold text-green-600 dark:text-green-400">
-                                        {categoryData.total.toFixed(2)}
+                                        {categoryData.total.toFixed(2)} €
                                     </span>
                                 {/if}
                             </div>
                             
-                            <!-- Statistics -->
-                            <div class="mt-2 space-y-2">
-                                <div class="flex justify-between text-sm">
-                                    <span class="text-gray-600 dark:text-gray-400">Transaction Count:</span>
-                                    <span class="font-medium text-gray-800 dark:text-gray-300">{categoryData.transactionCount}</span>
-                                </div>
-                                <div class="flex justify-between text-sm">
-                                    <span class="text-gray-600 dark:text-gray-400">Average Amount:</span>
-                                    <span class="font-medium text-gray-800 dark:text-gray-300">{(categoryData.total / categoryData.transactionCount).toFixed(2)}</span>
-                                </div>
-                            </div>
 
                             <!-- Subcategories Summary -->
                             {#if categoryData.subcategories?.length}
                                 <div class="mt-4">
-                                    <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Top Subcategories</h4>
-                                    <div class="flex flex-wrap gap-1">
-                                        {#each categoryData.subcategories.slice(0, 3) as subcategory}
-                                            <span class="inline-flex items-center gap-x-1.5 py-1 px-2 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                                                {subcategory.name}: {subcategory.total.toFixed(2)}
+                                    <div class="flex flex-wrap gap-1.5">
+                                        {#each categoryData.subcategories as subcategory}
+                                            <span class="inline-flex items-center gap-x-1.5 py-1 px-2 rounded-full text-xs font-medium bg-white border border-gray-200 text-gray-800 dark:bg-slate-800 dark:border-gray-700 dark:text-gray-300">
+                                                {subcategory.transactionCount} {subcategory.name}: {subcategory.total.toFixed(2)}
                                             </span>
                                         {/each}
                                     </div>
