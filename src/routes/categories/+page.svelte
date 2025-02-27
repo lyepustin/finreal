@@ -54,8 +54,22 @@
     }
 
     function handleCategoryClick(categoryId: number) {
-        // Navigate to transactions filtered by this category
-        goto(`/transactions?categories=${categoryId}`);
+        // Create URL params object
+        const params = new URLSearchParams();
+        
+        // Add the category in the correct format
+        params.append('categories.selected[]', categoryId.toString());
+        
+        // Preserve date range if it exists with correct parameter names
+        if (filters.dateRange.from) {
+            params.set('dateRange.from', filters.dateRange.from);
+        }
+        if (filters.dateRange.to) {
+            params.set('dateRange.to', filters.dateRange.to);
+        }
+
+        // Navigate to transactions with the parameters
+        goto(`/transactions?${params.toString()}`);
     }
 
     async function handleDateRangeChange({ detail: dateRange }: CustomEvent<CategoryFilters['dateRange']>) {
