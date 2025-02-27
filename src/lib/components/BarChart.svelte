@@ -67,15 +67,15 @@
                     {
                         label: 'Income',
                         data: props.chartData.map(d => d.income),
-                        backgroundColor: '#a8e6cf80',
-                        borderColor: '#a8e6cf',
+                        backgroundColor: 'rgba(16, 185, 129, 0.6)', // Tailwind emerald-500 with opacity
+                        borderColor: 'rgb(16, 185, 129)', // Tailwind emerald-500
                         borderWidth: 1
                     },
                     {
                         label: 'Expenses',
                         data: props.chartData.map(d => d.expenses),
-                        backgroundColor: '#ffb3ba80',
-                        borderColor: '#ffb3ba',
+                        backgroundColor: 'rgba(239, 68, 68, 0.6)', // Tailwind red-500 with opacity
+                        borderColor: 'rgb(239, 68, 68)', // Tailwind red-500
                         borderWidth: 1
                     }
                 ]
@@ -86,10 +86,42 @@
                 plugins: {
                     legend: {
                         position: 'top' as const,
+                        labels: {
+                            usePointStyle: true,
+                            pointStyle: 'circle',
+                            padding: 20,
+                            font: {
+                                family: "'Inter', sans-serif",
+                                size: 12
+                            }
+                        }
                     },
                     title: {
                         display: true,
-                        text: 'Income vs Expenses'
+                        text: 'Income vs Expenses',
+                        font: {
+                            family: "'Inter', sans-serif",
+                            size: 16,
+                            weight: 'bold'
+                        },
+                        padding: {
+                            top: 10,
+                            bottom: 20
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                        titleFont: {
+                            family: "'Inter', sans-serif",
+                            size: 14
+                        },
+                        bodyFont: {
+                            family: "'Inter', sans-serif",
+                            size: 13
+                        },
+                        padding: 12,
+                        cornerRadius: 8,
+                        displayColors: true
                     }
                 },
                 scales: {
@@ -97,16 +129,40 @@
                         beginAtZero: true,
                         title: {
                             display: true,
-                            text: 'Amount'
+                            text: 'Amount',
+                            font: {
+                                family: "'Inter', sans-serif",
+                                size: 13
+                            }
                         },
                         ticks: {
-                            callback: (value) => `$${value.toLocaleString()}`
+                            callback: (value) => `$${value.toLocaleString()}`,
+                            font: {
+                                family: "'Inter', sans-serif",
+                                size: 12
+                            }
+                        },
+                        grid: {
+                            color: 'rgba(226, 232, 240, 0.6)' // Tailwind slate-200 with opacity
                         }
                     },
                     x: {
                         title: {
                             display: true,
-                            text: periodType === 'month' ? 'Months' : 'Weeks'
+                            text: periodType === 'month' ? 'Months' : 'Weeks',
+                            font: {
+                                family: "'Inter', sans-serif",
+                                size: 13
+                            }
+                        },
+                        ticks: {
+                            font: {
+                                family: "'Inter', sans-serif",
+                                size: 12
+                            }
+                        },
+                        grid: {
+                            display: false
                         }
                     }
                 }
@@ -148,21 +204,26 @@
     });
 </script>
 
-<div 
-    class="chart-container" 
-    bind:this={chartContainer}
->
-    <canvas bind:this={canvas}></canvas>
+<div class="bg-white border border-gray-200 rounded-xl shadow-sm dark:bg-slate-900 dark:border-gray-700 p-4 md:p-5 mb-4">
+    <div class="flex flex-col">
+        <div class="-m-1.5 overflow-x-auto">
+            <div class="p-1.5 min-w-full inline-block align-middle">
+                <div 
+                    class="chart-container" 
+                    bind:this={chartContainer}
+                >
+                    <canvas bind:this={canvas}></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <style>
     .chart-container {
         position: relative;
         height: 400px;
-        background-color: white;
-        padding: 1.5rem;
-        border-radius: 8px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        width: 100%;
     }
 
     .chart-container canvas {

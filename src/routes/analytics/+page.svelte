@@ -4,6 +4,9 @@
     import { enhance } from '$app/forms';
     import BarChart from '$lib/components/BarChart.svelte';
     import CategoryCharts from '$lib/components/CategoryCharts.svelte';
+    import TransactionFilters from '$lib/components/TransactionFilters.svelte';
+    import { DEFAULT_ANALYTICS_FILTER_STATE } from '$lib/types/filters';
+    import type { AnalyticsFilterState } from '$lib/types/filters';
 
     let { data } = $props<{ data: PageData }>();
     let chartData = $state(data.chartData);
@@ -13,40 +16,60 @@
     let isLoading = $state(false);
     let isFiltersVisible = $state(false);
 
-    function toggleFilters() {
-        isFiltersVisible = !isFiltersVisible;
-    }
-
     // Filter state
-    let filters = $state({
-        type: { value: 'all' },
-        dateRange: { 
+    let filters = $state<AnalyticsFilterState>({
+        ...DEFAULT_ANALYTICS_FILTER_STATE,
+        dateRange: {
             from: defaultFromDate,
             to: defaultToDate
-        },
-        categories: {
-            selected: [],
-            isNegative: false
-        },
-        subcategories: {
-            selected: []
-        },
-        search: {
-            value: '',
-            isNegative: false
         },
         period: {
             value: 'month' as const
         }
     });
 
+    // Count active filters
+    let activeFiltersCount = $state(0);
+    
+    $effect(() => {
+        let count = 0;
+        if (filters.type.value !== 'all') count++;
+        if (filters.dateRange.from && filters.dateRange.from !== defaultFromDate) count++;
+        if (filters.dateRange.to) count++;
+        if (filters.categories.selected.length > 0) count++;
+        if (filters.subcategories.selected.length > 0) count++;
+        if (filters.search.value) count++;
+        activeFiltersCount = count;
+    });
+
     // Debounced filter handler
     let debounceTimer: ReturnType<typeof setTimeout>;
-    function handleFilterChange() {
+    
+    function handleFilterChange({ detail }: CustomEvent<{ filters: AnalyticsFilterState, currentPage: number }>) {
         clearTimeout(debounceTimer);
         debounceTimer = setTimeout(() => {
+            // Update local filters state with the received filters
+            filters = detail.filters;
+            
+            // Submit the form
             document.getElementById('filter-form')?.requestSubmit();
         }, 300);
+    }
+
+    function handleClearFilters() {
+        // Reset filters to default state
+        filters = {
+            ...DEFAULT_ANALYTICS_FILTER_STATE,
+            dateRange: {
+                from: defaultFromDate,
+                to: defaultToDate
+            },
+            period: {
+                value: 'month' as const
+            }
+        };
+        
+        document.getElementById('filter-form')?.requestSubmit();
     }
 
     // Form submission handler
@@ -61,133 +84,76 @@
             }
         };
     }
-
-    function resetFilters() {
-        filters.type.value = 'all';
-        filters.dateRange.from = defaultFromDate;
-        filters.dateRange.to = defaultToDate;
-        filters.categories.selected = [];
-        filters.categories.isNegative = false;
-        filters.subcategories.selected = [];
-        filters.search.value = '';
-        filters.search.isNegative = false;
-        filters.period.value = 'month';
-        handleFilterChange();
-    }
 </script>
 
 <div class="analytics-container">
-    <div class="filters-toggle">
-        <button type="button" class="toggle-button" onclick={toggleFilters}>
-            {isFiltersVisible ? 'Hide Filters' : 'Show Filters'}
-        </button>
-    </div>
-
     <form 
         id="filter-form"
         method="POST"
         use:enhance={handleFormSubmit}
-        class="filters-form {isFiltersVisible ? 'visible' : ''}"
     >
         <input type="hidden" name="filters" value={JSON.stringify(filters)} />
         
-        <div class="filters">
-            <div class="filter-header">
-                <h3>Filters</h3>
-                <div class="filter-actions">
-                    <button type="button" class="reset-button" onclick={resetFilters}>Reset Filters</button>
-                    <div class="period-selector">
-                        <label>
-                            Period:
-                            <select bind:value={filters.period.value} onchange={handleFilterChange}>
-                                <option value="month">Monthly</option>
-                                <option value="week">Weekly</option>
-                            </select>
-                        </label>
-                    </div>
-                </div>
-            </div>
+        <!-- Transaction Filters Component -->
+        <TransactionFilters 
+            filters={filters}
+            allCategories={categories}
+            defaultFromDate={defaultFromDate}
+            isVisible={isFiltersVisible}
+            currentPage={1}
+            on:filterChange={handleFilterChange}
+            on:clearFilters={handleClearFilters}
+            on:toggleVisibility={() => isFiltersVisible = !isFiltersVisible}
+        />
 
-            <div class="filter-group">
-                <div class="filter-row">
-                    <label>
-                        Transaction Type:
-                        <select bind:value={filters.type.value} onchange={handleFilterChange}>
-                            <option value="all">All</option>
-                            <option value="income">Income</option>
-                            <option value="expense">Expenses</option>
-                        </select>
-                    </label>
-                </div>
+        <!-- Mobile-friendly filter toggle button (only shown when filters are hidden) -->
+        {#if !isFiltersVisible}
+            <div class="mb-4">
+                <button 
+                    type="button" 
+                    class="py-2 px-3 inline-flex items-center gap-x-2 text-sm font-medium rounded-lg border border-gray-200 shadow-sm hover:bg-gray-50 disabled:opacity-50 disabled:pointer-events-none dark:focus:outline-none dark:focus:ring-1 dark:focus:ring-gray-600"
+                    class:bg-white={activeFiltersCount === 0}
+                    class:text-gray-800={activeFiltersCount === 0}
+                    class:dark:bg-slate-900={activeFiltersCount === 0}
+                    class:dark:border-gray-700={activeFiltersCount === 0}
+                    class:dark:text-white={activeFiltersCount === 0}
+                    class:bg-blue-100={activeFiltersCount > 0}
+                    class:text-blue-800={activeFiltersCount > 0}
+                    class:dark:bg-blue-900={activeFiltersCount > 0}
+                    class:dark:border-blue-800={activeFiltersCount > 0}
+                    class:dark:text-blue-200={activeFiltersCount > 0}
+                    onclick={() => isFiltersVisible = true}
+                >
+                    <svg class="flex-shrink-0 size-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+                    Show Filters
+                    {#if activeFiltersCount > 0}
+                        <span class="inline-flex items-center py-0.5 px-1.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300">{activeFiltersCount}</span>
+                    {/if}
+                </button>
             </div>
-
-            <div class="filter-group">
-                <div class="filter-row date-inputs">
-                    <label>
-                        From:
-                        <input 
-                            type="date" 
-                            bind:value={filters.dateRange.from}
-                            onchange={handleFilterChange}
-                        />
-                    </label>
-                    <label>
-                        To:
-                        <input 
-                            type="date" 
-                            bind:value={filters.dateRange.to}
-                            onchange={handleFilterChange}
-                        />
-                    </label>
-                </div>
-            </div>
-
-            <div class="filter-group">
-                <div class="categories-section">
-                    <span class="section-title">Categories</span>
-                    <div class="categories-list">
-                        {#each categories as category}
-                            <label class="category-item">
-                                <input 
-                                    type="checkbox"
-                                    checked={filters.categories.selected.includes(category.id.toString())}
-                                    onchange={() => {
-                                        const id = category.id.toString();
-                                        if (filters.categories.selected.includes(id)) {
-                                            filters.categories.selected = filters.categories.selected.filter(c => c !== id);
-                                        } else {
-                                            filters.categories.selected = [...filters.categories.selected, id];
-                                        }
-                                        handleFilterChange();
-                                    }}
-                                />
-                                <span>{category.name}</span>
-                            </label>
-                        {/each}
-                    </div>
-                    <label class="negative-filter">
-                        <input 
-                            type="checkbox" 
-                            bind:checked={filters.categories.isNegative}
-                            onchange={handleFilterChange}
-                        />
-                        Exclude selected categories
-                    </label>
-                </div>
-            </div>
-        </div>
+        {/if}
     </form>
 
     {#if isLoading}
-        <div class="loading">Loading chart data...</div>
+        <div class="flex justify-center items-center p-8 bg-white border border-gray-200 rounded-xl shadow-sm dark:bg-slate-900 dark:border-gray-700">
+            <div class="animate-spin inline-block size-6 border-[3px] border-current border-t-transparent text-blue-600 rounded-full dark:text-blue-500" role="status" aria-label="loading">
+                <span class="sr-only">Loading...</span>
+            </div>
+        </div>
     {:else if chartData}
-        <CategoryCharts chartData={chartData} />
-        <BarChart 
-            chartData={chartData}
-            periodType={filters.period.value}
-        />
+        <div class="space-y-4">
+            <CategoryCharts chartData={chartData} />
+            <BarChart 
+                chartData={chartData}
+                periodType={filters.period?.value || 'month'}
+            />
+        </div>
     {:else}
-        <div class="no-data">No data available for the selected filters</div>
+        <div class="flex flex-col items-center justify-center p-8 text-center bg-white border border-gray-200 rounded-xl shadow-sm dark:bg-slate-900 dark:border-gray-700">
+            <svg class="size-16 text-gray-300 dark:text-gray-600 mb-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg>
+            <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-200">No data available</h3>
+            <p class="text-gray-500 mt-1">Try adjusting your filters or adding new transactions</p>
+        </div>
     {/if}
 </div>
 
@@ -196,183 +162,7 @@
         display: flex;
         flex-direction: column;
         gap: 2rem;
-        padding: 1.5rem;
         max-width: 1200px;
         margin: 0 auto;
-    }
-
-    .filters-toggle {
-        display: flex;
-        justify-content: flex-end;
-        margin-bottom: 1rem;
-    }
-
-    .toggle-button {
-        padding: 0.5rem 1rem;
-        background-color: #f8f9fa;
-        border: 1px solid #ddd;
-        border-radius: 4px;
-        color: #495057;
-        cursor: pointer;
-        font-size: 0.9rem;
-        transition: all 0.2s ease;
-    }
-
-    .toggle-button:hover {
-        background-color: #e9ecef;
-        border-color: #ced4da;
-    }
-
-    .filters-form {
-        max-height: 0;
-        overflow: hidden;
-        transition: max-height 0.3s ease-out;
-        margin-bottom: 0;
-    }
-
-    .filters-form.visible {
-        max-height: 2000px;
-        margin-bottom: 2rem;
-    }
-
-    .filters {
-        display: flex;
-        flex-direction: column;
-        gap: 1.5rem;
-        padding: 1.5rem;
-        background-color: #f8f9fa;
-        border-radius: 8px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-    }
-
-    .filter-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 1rem;
-    }
-
-    .filter-header h3 {
-        margin: 0;
-        color: #2c3e50;
-    }
-
-    .filter-actions {
-        display: flex;
-        align-items: center;
-        gap: 1rem;
-    }
-
-    .reset-button {
-        padding: 0.5rem 1rem;
-        background-color: #f8f9fa;
-        border: 1px solid #ddd;
-        border-radius: 4px;
-        color: #495057;
-        cursor: pointer;
-        font-size: 0.9rem;
-        transition: all 0.2s ease;
-    }
-
-    .reset-button:hover {
-        background-color: #e9ecef;
-        border-color: #ced4da;
-    }
-
-    .reset-button:active {
-        background-color: #dee2e6;
-    }
-
-    .filter-group {
-        display: flex;
-        flex-direction: column;
-        gap: 1rem;
-    }
-
-    .filter-row {
-        display: flex;
-        gap: 1rem;
-        align-items: center;
-    }
-
-    .date-inputs {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 1rem;
-    }
-
-    select,
-    input[type="date"] {
-        padding: 0.5rem;
-        border: 1px solid #ddd;
-        border-radius: 4px;
-        background-color: white;
-        font-size: 0.9rem;
-    }
-
-    .categories-section {
-        display: flex;
-        flex-direction: column;
-        gap: 1rem;
-    }
-
-    .section-title {
-        font-weight: 600;
-        color: #2c3e50;
-    }
-
-    .categories-list {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-        gap: 0.5rem;
-        padding: 1rem;
-        background-color: white;
-        border-radius: 4px;
-        border: 1px solid #ddd;
-    }
-
-    .category-item {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        padding: 0.5rem;
-        background-color: #f8f9fa;
-        border-radius: 4px;
-        cursor: pointer;
-        transition: background-color 0.2s;
-    }
-
-    .category-item:hover {
-        background-color: #e9ecef;
-    }
-
-    .negative-filter {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        margin-top: 0.5rem;
-    }
-
-    .loading,
-    .no-data {
-        text-align: center;
-        padding: 2rem;
-        color: #6c757d;
-        font-size: 1.1rem;
-        background-color: white;
-        border-radius: 8px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-    }
-
-    label {
-        display: flex;
-        flex-direction: column;
-        gap: 0.25rem;
-        color: #495057;
-        font-size: 0.9rem;
-    }
-
-    .period-selector select {
-        min-width: 120px;
     }
 </style> 

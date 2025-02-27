@@ -2,9 +2,49 @@
 	import { invalidate } from '$app/navigation'
 	import { onMount } from 'svelte'
 	import '../app.css'; // Make sure Tailwind CSS is imported
+	import SignOutPopup from '$lib/components/SignOutPopup.svelte';
+	import { signOut } from '$lib/utils/auth';
   
 	let { data, children } = $props()
 	let { session, supabase } = $derived(data)
+	
+	let showSignOutPopup = $state(false);
+	
+	function openSignOutPopup() {
+	  showSignOutPopup = true;
+	  collapseMenu();
+	}
+	
+	function closeSignOutPopup() {
+	  showSignOutPopup = false;
+	}
+	
+	function handleSignOutConfirm() {
+	  // The form in SignOutPopup will handle the actual sign-out
+	  // We just need to close the popup when it's done
+	  closeSignOutPopup();
+	}
+	
+	// Direct sign-out function using the utility
+	async function handleDirectSignOut() {
+	  collapseMenu();
+	  await signOut();
+	}
+	
+	// Function to collapse the mobile menu
+	function collapseMenu() {
+	  // Only run on mobile
+	  if (window.innerWidth < 640) { // sm breakpoint is 640px
+	    const collapseElement = document.getElementById('navbar-collapse-with-animation');
+	    if (collapseElement && !collapseElement.classList.contains('hidden')) {
+	      // Find the toggle button and click it to collapse the menu
+	      const toggleButton = document.querySelector('.hs-collapse-toggle');
+	      if (toggleButton) {
+	        toggleButton.click();
+	      }
+	    }
+	  }
+	}
   
 	onMount(() => {
 	  const { data } = supabase.auth.onAuthStateChange((_, newSession) => {
@@ -36,18 +76,21 @@
     </div>
     <div id="navbar-collapse-with-animation" class="hs-collapse hidden overflow-hidden transition-all duration-300 basis-full grow sm:block">
       <div class="flex flex-col gap-y-4 gap-x-0 mt-5 sm:flex-row sm:items-center sm:justify-end sm:gap-y-0 sm:gap-x-7 sm:mt-0 sm:ps-7">
-        <a class="font-medium text-blue-600 sm:py-6 dark:text-blue-500" href="/" aria-current="page">Home</a>
-        <a class="font-medium text-gray-500 hover:text-gray-400 sm:py-6 dark:text-gray-400 dark:hover:text-gray-500" href="/transactions">Transactions</a>
-        <a class="font-medium text-gray-500 hover:text-gray-400 sm:py-6 dark:text-gray-400 dark:hover:text-gray-500" href="/analytics">Analytics</a>
-        <a class="font-medium text-gray-500 hover:text-gray-400 sm:py-6 dark:text-gray-400 dark:hover:text-gray-500" href="/private">Private Area</a>
+        <a class="font-medium text-blue-600 sm:py-6 dark:text-blue-500" href="/" onclick={collapseMenu} aria-current="page">Home</a>
+        <a class="font-medium text-gray-500 hover:text-gray-400 sm:py-6 dark:text-gray-400 dark:hover:text-gray-500" href="/transactions" onclick={collapseMenu}>Transactions</a>
+        <a class="font-medium text-gray-500 hover:text-gray-400 sm:py-6 dark:text-gray-400 dark:hover:text-gray-500" href="/analytics" onclick={collapseMenu}>Analytics</a>
+		<a class="font-medium text-gray-500 hover:text-gray-400 sm:py-6 dark:text-gray-400 dark:hover:text-gray-500" href="/categories" onclick={collapseMenu}>Categories</a>
         
         {#if session}
-          <a class="flex items-center gap-x-2 font-medium text-gray-500 hover:text-blue-600 sm:border-s sm:border-gray-300 sm:my-6 sm:ps-6 dark:border-gray-700 dark:text-gray-400 dark:hover:text-blue-500" href="/auth/signout">
+          <button 
+            class="flex items-center gap-x-2 font-medium text-gray-500 hover:text-blue-600 sm:border-s sm:border-gray-300 sm:my-6 sm:ps-6 dark:border-gray-700 dark:text-gray-400 dark:hover:text-blue-500"
+            onclick={handleDirectSignOut}
+          >
             <svg class="flex-shrink-0 size-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
             Sign out
-          </a>
+          </button>
         {:else}
-          <a class="flex items-center gap-x-2 font-medium text-gray-500 hover:text-blue-600 sm:border-s sm:border-gray-300 sm:my-6 sm:ps-6 dark:border-gray-700 dark:text-gray-400 dark:hover:text-blue-500" href="/auth/signin">
+          <a class="flex items-center gap-x-2 font-medium text-gray-500 hover:text-blue-600 sm:border-s sm:border-gray-300 sm:my-6 sm:ps-6 dark:border-gray-700 dark:text-gray-400 dark:hover:text-blue-500" href="/auth" onclick={collapseMenu}>
             <svg class="flex-shrink-0 size-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
             Sign in
           </a>
@@ -56,6 +99,15 @@
     </div>
   </nav>
 </header>
+
+<!-- Sign Out Popup - Only shown when using the popup flow -->
+{#if showSignOutPopup}
+  <SignOutPopup 
+    isOpen={showSignOutPopup} 
+    on:confirm={handleSignOutConfirm} 
+    on:cancel={closeSignOutPopup} 
+  />
+{/if}
 
 <!-- Main content -->
 <main class="container mx-auto px-4 py-8">

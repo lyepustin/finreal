@@ -1,5 +1,6 @@
 import type { PageServerLoad, Actions } from './$types'
 import { measureAsync } from '$lib/utils/performance';
+import type { AnalyticsFilterState } from '$lib/types/filters';
 
 // Constants
 const DEFAULT_FROM_DATE = '2024-01-01';
@@ -11,6 +12,8 @@ interface TransactionData {
     amount: number;
     categoryId: string;
     categoryName: string;
+    subcategoryId?: string;
+    subcategoryName?: string;
 }
 
 interface ChartDataPoint {
@@ -22,6 +25,8 @@ interface ChartDataPoint {
         name: string;
         amount: number;
         type: 'income' | 'expense';
+        subcategoryId?: string;
+        subcategoryName?: string;
     }>;
 }
 
@@ -66,7 +71,9 @@ function groupTransactionsByPeriod(data: TransactionData[], period: 'month' | 'w
             id: row.categoryId,
             name: row.categoryName,
             amount: Math.abs(row.amount),
-            type: isIncome ? 'income' : 'expense'
+            type: isIncome ? 'income' : 'expense',
+            subcategoryId: row.subcategoryId,
+            subcategoryName: row.subcategoryName
         });
     });
     
@@ -80,7 +87,7 @@ export const load: PageServerLoad = async ({ depends, locals: { supabase } }) =>
     return await measureAsync('analytics-page-load', async () => {
         const { data: categories } = await supabase
             .from('categories')
-            .select('id, name')
+            .select('id, name, subcategories(id, name)')
             .order('name');
 
         const transfersCategoryId = categories?.find(c => c.name === EXCLUDED_TRANSFERS_CATEGORY_NAME)?.id;
@@ -90,6 +97,7 @@ export const load: PageServerLoad = async ({ depends, locals: { supabase } }) =>
             .select(`
                 amount,
                 category:categories!inner(id, name),
+                subcategory:subcategories(id, name),
                 transaction:transactions!inner(
                     operation_date
                 )
@@ -108,7 +116,9 @@ export const load: PageServerLoad = async ({ depends, locals: { supabase } }) =>
                 date: t.transaction.operation_date,
                 amount: t.amount,
                 categoryId: t.category.id,
-                categoryName: t.category.name
+                categoryName: t.category.name,
+                subcategoryId: t.subcategory?.id,
+                subcategoryName: t.subcategory?.name
             })) || [],
             'month'
         );
@@ -122,24 +132,15 @@ export const load: PageServerLoad = async ({ depends, locals: { supabase } }) =>
     });
 }
 
-interface FilterOptions {
-    type: { value: 'all' | 'income' | 'expense' };
-    categories: { selected: string[]; isNegative: boolean };
-    subcategories: { selected: string[] };
-    dateRange: { from?: string; to?: string };
-    search: { value: string; isNegative: boolean };
-    period: { value: 'month' | 'week' };
-}
-
 export const actions = {
     default: async ({ request, locals: { supabase } }) => {
         return await measureAsync('analytics-filter-action', async () => {
             const formData = await request.formData();
-            const filters: FilterOptions = JSON.parse(formData.get('filters')?.toString() || '{}');
+            const filters: AnalyticsFilterState = JSON.parse(formData.get('filters')?.toString() || '{}');
 
             const { data: categories } = await supabase
                 .from('categories')
-                .select('id, name')
+                .select('id, name, subcategories(id, name)')
                 .order('name');
 
             const transfersCategoryId = categories?.find(c => c.name === EXCLUDED_TRANSFERS_CATEGORY_NAME)?.id;
@@ -149,6 +150,7 @@ export const actions = {
                 .select(`
                     amount,
                     category:categories!inner(id, name),
+                    subcategory:subcategories(id, name),
                     transaction:transactions!inner(
                         operation_date
                     )
@@ -196,6 +198,16 @@ export const actions = {
                 }
             }
 
+            if (filters.search.value) {
+                // Search in transaction description via the transactions table
+                const searchTerm = `%${filters.search.value}%`;
+                if (filters.search.isNegative) {
+                    query = query.not('transactions.description', 'ilike', searchTerm);
+                } else {
+                    query = query.ilike('transactions.description', searchTerm);
+                }
+            }
+
             const { data: transactionData, error } = await query;
 
             if (error) {
@@ -207,7 +219,9 @@ export const actions = {
                     date: t.transaction.operation_date,
                     amount: t.amount,
                     categoryId: t.category.id,
-                    categoryName: t.category.name
+                    categoryName: t.category.name,
+                    subcategoryId: t.subcategory?.id,
+                    subcategoryName: t.subcategory?.name
                 })) || [],
                 filters.period.value || 'month'
             );

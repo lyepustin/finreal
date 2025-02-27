@@ -91,9 +91,13 @@
 
 <div class="category-charts">
     {#if incomePieData.length === 0 && expensesPieData.length === 0}
-        <div class="no-data">No category data available</div>
+        <div class="flex flex-col items-center justify-center p-8 text-center bg-white border border-gray-200 rounded-xl shadow-sm dark:bg-slate-900 dark:border-gray-700">
+            <svg class="size-16 text-gray-300 dark:text-gray-600 mb-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="8" x2="16" y1="12" y2="12"/></svg>
+            <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-200">No category data available</h3>
+            <p class="text-gray-500 mt-1">Try adjusting your filters or adding new transactions</p>
+        </div>
     {:else}
-        <div class="pie-charts-container">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             {#if incomePieData.length > 0}
                 <PieChart 
                     data={incomePieData}
@@ -115,27 +119,5 @@
 <style>
     .category-charts {
         margin-bottom: 2rem;
-    }
-
-    .pie-charts-container {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 1.5rem;
-    }
-
-    .no-data {
-        text-align: center;
-        padding: 2rem;
-        color: #6c757d;
-        font-size: 1.1rem;
-        background-color: white;
-        border-radius: 8px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-    }
-
-    @media (max-width: 768px) {
-        .pie-charts-container {
-            grid-template-columns: 1fr;
-        }
     }
 </style> 
