@@ -53,12 +53,17 @@
         updateURL();
     }
 
-    function handleCategoryClick(categoryId: number) {
+    function handleCategoryClick(categoryId: number, total: number) {
         // Create URL params object
         const params = new URLSearchParams();
         
         // Add the category in the correct format
         params.append('categories.selected[]', categoryId.toString());
+        
+        // Add sorting parameters - direction based on whether it's income or expense
+        params.set('sort.column', 'amount');
+        params.set('sort.direction', total >= 0 ? 'desc' : 'asc');
+        params.set('page', '1');
         
         // Preserve date range if it exists with correct parameter names
         if (filters.dateRange.from) {
@@ -136,8 +141,8 @@
                     <!-- Category Card -->
                     <div 
                         class="group flex flex-col h-full bg-white border border-gray-200 shadow-sm rounded-xl hover:shadow-md transition dark:bg-slate-900 dark:border-gray-700 dark:shadow-slate-700/[.7]"
-                        onclick={() => handleCategoryClick(categoryData.id)}
-                        onkeydown={(e) => e.key === 'Enter' && handleCategoryClick(categoryData.id)}
+                        onclick={() => handleCategoryClick(categoryData.id, categoryData.total)}
+                        onkeydown={(e) => e.key === 'Enter' && handleCategoryClick(categoryData.id, categoryData.total)}
                         tabindex="0"
                         role="button"
                         aria-label="View category transactions"
