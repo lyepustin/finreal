@@ -15,7 +15,9 @@
     }>();
 
     const df = new DateFormatter("en-US", {
-        dateStyle: "long"
+        month: "short",
+        day: "numeric",
+        year: "numeric"
     });
 
     const monthFormatter = new DateFormatter("en-US", {
@@ -142,95 +144,83 @@
 </script>
 
 <div class="bg-white border border-gray-200 rounded-xl shadow-sm dark:bg-slate-900 dark:border-gray-700 p-4">
-    <div class="flex flex-col gap-4">
-        <div class="grid grid-cols-2 gap-4">
-            <!-- Month Navigation -->
-            <div class="flex items-center justify-between p-2 border rounded-lg dark:border-gray-700">
-                <button 
-                    class="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full disabled:opacity-50"
-                    onclick={setPreviousMonth}
-                >
-                    <ChevronLeftIcon class="h-4 w-4" />
-                </button>
-                <span class="text-sm font-medium">
-                    {monthFormatter.format(currentPeriodStart.toDate(getLocalTimeZone()))}
-                </span>
-                <button 
-                    class="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full disabled:opacity-50"
-                    onclick={setNextMonth}
-                    disabled={isCurrentOrFutureMonth(currentPeriodStart)}
-                >
-                    <ChevronRightIcon class="h-4 w-4" />
-                </button>
+    <div class="flex items-center justify-between gap-2">
+        <!-- Year back -->
+        <button 
+            class="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full disabled:opacity-50"
+            onclick={setPreviousYear}
+        >
+            <div class="flex">
+                <ChevronLeftIcon class="h-4 w-4" />
+                <ChevronLeftIcon class="h-4 w-4 -ml-2" />
             </div>
+        </button>
+        
+        <!-- Month back -->
+        <button 
+            class="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full disabled:opacity-50"
+            onclick={setPreviousMonth}
+        >
+            <ChevronLeftIcon class="h-4 w-4" />
+        </button>
 
-            <!-- Year Navigation -->
-            <div class="flex items-center justify-between p-2 border rounded-lg dark:border-gray-700">
-                <button 
-                    class="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full disabled:opacity-50"
-                    onclick={setPreviousYear}
+        <!-- Date Range Display -->
+        <Popover.Root>
+            <Popover.Trigger asChild let:builder>
+                <Button
+                    variant="outline"
+                    class={cn("justify-center text-sm font-medium", !fromDate && "text-muted-foreground")}
+                    builders={[builder]}
                 >
-                    <ChevronLeftIcon class="h-4 w-4" />
-                </button>
-                <span class="text-sm font-medium">
-                    {yearFormatter.format(currentPeriodStart.toDate(getLocalTimeZone()))}
-                </span>
-                <button 
-                    class="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full disabled:opacity-50"
-                    onclick={setNextYear}
-                    disabled={isCurrentOrFutureYear(currentPeriodStart)}
-                >
-                    <ChevronRightIcon class="h-4 w-4" />
-                </button>
-            </div>
-        </div>
+                    <CalendarIcon class="mr-2 h-4 w-4" />
+                    {#if fromDate && toDate}
+                        {df.format(fromDate.toDate(getLocalTimeZone()))} to {df.format(toDate.toDate(getLocalTimeZone()))}
+                    {:else}
+                        Select date range
+                    {/if}
+                </Button>
+            </Popover.Trigger>
+            <Popover.Content class="w-auto p-4">
+                <div class="grid gap-4">
+                    <div class="grid gap-2">
+                        <div class="grid grid-cols-2 gap-2">
+                            <Calendar 
+                                bind:value={fromDate}
+                                mode="single"
+                                initialFocus
+                                maxValue={toDate}
+                            />
+                            <Calendar
+                                bind:value={toDate}
+                                mode="single"
+                                initialFocus
+                                minValue={fromDate}
+                            />
+                        </div>
+                    </div>
+                </div>
+            </Popover.Content>
+        </Popover.Root>
 
-        <div class="grid grid-cols-2 gap-2 items-center">
-            <div class="relative">
-                <Popover.Root>
-                    <Popover.Trigger asChild let:builder>
-                        <Button
-                            variant="outline"
-                            class={cn("w-full justify-start text-left font-normal", !fromDate && "text-muted-foreground")}
-                            builders={[builder]}
-                        >
-                            <CalendarIcon class="mr-2 h-4 w-4" />
-                            {fromDate ? df.format(fromDate.toDate(getLocalTimeZone())) : "Start date"}
-                        </Button>
-                    </Popover.Trigger>
-                    <Popover.Content class="w-auto p-0">
-                        <Calendar 
-                            bind:value={fromDate}
-                            mode="single"
-                            initialFocus
-                            maxValue={toDate}
-                        />
-                    </Popover.Content>
-                </Popover.Root>
-            </div>
+        <!-- Month forward -->
+        <button 
+            class="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full disabled:opacity-50"
+            onclick={setNextMonth}
+            disabled={isCurrentOrFutureMonth(currentPeriodStart)}
+        >
+            <ChevronRightIcon class="h-4 w-4" />
+        </button>
 
-            <div class="relative">
-                <Popover.Root>
-                    <Popover.Trigger asChild let:builder>
-                        <Button
-                            variant="outline"
-                            class={cn("w-full justify-start text-left font-normal", !toDate && "text-muted-foreground")}
-                            builders={[builder]}
-                        >
-                            <CalendarIcon class="mr-2 h-4 w-4" />
-                            {toDate ? df.format(toDate.toDate(getLocalTimeZone())) : "End date"}
-                        </Button>
-                    </Popover.Trigger>
-                    <Popover.Content class="w-auto p-0">
-                        <Calendar
-                            bind:value={toDate}
-                            mode="single"
-                            initialFocus
-                            minValue={fromDate}
-                        />
-                    </Popover.Content>
-                </Popover.Root>
+        <!-- Year forward -->
+        <button 
+            class="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full disabled:opacity-50"
+            onclick={setNextYear}
+            disabled={isCurrentOrFutureYear(currentPeriodStart)}
+        >
+            <div class="flex">
+                <ChevronRightIcon class="h-4 w-4" />
+                <ChevronRightIcon class="h-4 w-4 -ml-2" />
             </div>
-        </div>
+        </button>
     </div>
 </div> 

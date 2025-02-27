@@ -166,7 +166,7 @@
                                     <div class="flex flex-wrap gap-1.5">
                                         {#each categoryData.subcategories as subcategory}
                                             <span class="inline-flex items-center gap-x-1.5 py-1 px-2 rounded-full text-xs font-medium bg-white border border-gray-200 text-gray-800 dark:bg-slate-800 dark:border-gray-700 dark:text-gray-300">
-                                                {subcategory.transactionCount} {subcategory.name}: {subcategory.total.toFixed(2)}
+                                                {subcategory.transactionCount} {subcategory.name}: {subcategory.total} €
                                             </span>
                                         {/each}
                                     </div>
