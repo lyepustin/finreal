@@ -83,6 +83,7 @@
                             bind:value={fromDate}
                             mode="single"
                             initialFocus
+                            maxValue={toDate}
                         />
                     </Popover.Content>
                 </Popover.Root>
@@ -106,6 +107,7 @@
                             bind:value={toDate}
                             mode="single"
                             initialFocus
+                            minValue={fromDate}
                         />
                     </Popover.Content>
                 </Popover.Root>
