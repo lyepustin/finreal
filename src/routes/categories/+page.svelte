@@ -38,9 +38,6 @@
         // Get default date range
         const defaultDateRange = getDefaultMonthDateRange();
         
-        // Only log once during development
-        console.log('Client default dates:', defaultDateRange);
-        
         const defaultFilters = {
             ...filters,
             dateRange: {

@@ -102,12 +102,6 @@
         fromDate = parseDate(defaultRange.from);
         toDate = parseDate(defaultRange.to);
         
-        // Log for debugging
-        console.log('DateRangeFilter default dates:', {
-            fromDate: fromDate.toString(),
-            toDate: toDate.toString()
-        });
-        
         currentPeriodStart = fromDate;
     }
 

@@ -12,17 +12,11 @@ function parseFilters(searchParams: URLSearchParams): CategoryFilters {
 
     // Get default date range for current month
     const defaultDateRange = getDefaultMonthDateRange();
-
-    // Log the parameters for debugging
-    console.log('URL date parameters:', { fromParam, toParam });
-    console.log('Default dates:', defaultDateRange);
     
     const dateRange = { 
         from: fromParam || defaultDateRange.from,
         to: toParam || defaultDateRange.to
     };
-    
-    console.log('Using date range:', dateRange);
     
     return {
         dateRange
