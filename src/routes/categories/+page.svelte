@@ -155,11 +155,11 @@
                                 </h3>
                                 {#if categoryData.total < 0}
                                     <span class="text-xl font-semibold text-red-600 dark:text-red-400">
-                                        {categoryData.total.toFixed(2)} €
+                                        {categoryData.total} €
                                     </span>
                                 {:else}
                                     <span class="text-xl font-semibold text-green-600 dark:text-green-400">
-                                        {categoryData.total.toFixed(2)} €
+                                        {categoryData.total} €
                                     </span>
                                 {/if}
                             </div>
@@ -191,8 +191,8 @@
         {:else}
             <div class="flex flex-col items-center justify-center p-8 text-center">
                 <svg class="size-16 text-gray-300 dark:text-gray-600 mb-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg>
-                <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-200">No categories found</h3>
-                <p class="text-gray-500 mt-1">Try adding new transactions</p>
+                <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-200">🙃 No categories found 🙃</h3>
+                <p class="text-gray-500 mt-1">Try adjusting your filters</p>
             </div>
         {/if}
     </div>
