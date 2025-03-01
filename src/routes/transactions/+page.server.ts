@@ -1,6 +1,7 @@
 import type { PageServerLoad, Actions } from './$types'
 import type { Transaction } from '$lib/types'
 import { measureAsync } from '$lib/utils/performance';
+import { getDefaultMonthDateRange } from '$lib/utils/dates';
 
 // Centralize the query fields for reuse and maintainability
 const TRANSACTION_SELECT = `
@@ -39,7 +40,6 @@ const TRANSACTION_SELECT = `
 `;
 
 const PAGE_SIZE = 20;
-const DEFAULT_FROM_DATE = '2024-12-01';
 
 interface FilterOptions {
     type: { value: 'all' | 'income' | 'expense' };
@@ -54,11 +54,14 @@ interface FilterOptions {
 }
 
 function parseFilters(searchParams: URLSearchParams): FilterOptions {
+    // Get default date range for current month
+    const defaultDateRange = getDefaultMonthDateRange();
+    
     const filters: FilterOptions = {
         type: { value: searchParams.get('type.value') as FilterOptions['type']['value'] || 'all' },
         dateRange: {
-            from: searchParams.get('dateRange.from') || DEFAULT_FROM_DATE,
-            to: searchParams.get('dateRange.to') || ''
+            from: searchParams.get('dateFrom') || defaultDateRange.from,
+            to: searchParams.get('dateTo') || defaultDateRange.to
         },
         categories: {
             selected: searchParams.getAll('categories.selected[]') || [],
@@ -91,8 +94,7 @@ export const load: PageServerLoad = async ({ depends, locals: { supabase }, url 
             .select(TRANSACTION_SELECT, { count: 'exact' });
 
         // Apply filters
-        const fromDate = filters.dateRange.from || DEFAULT_FROM_DATE;
-        query = query.gte('operation_date', fromDate);
+        query = query.gte('operation_date', filters.dateRange.from);
         if (filters.dateRange.to) {
             query = query.lte('operation_date', filters.dateRange.to);
         }
@@ -146,7 +148,55 @@ export const load: PageServerLoad = async ({ depends, locals: { supabase }, url 
 
         // Apply sorting
         if (filters.sort?.column === 'amount') {
-            query = query.order('operation_date', { ascending: false });
+            // For amount sorting, we need to fetch all transactions first, then sort by amount
+            // This is because the amount is calculated from the categories
+            const { data: allTransactions, error: fetchError } = await query.order('operation_date', { ascending: false });
+            
+            if (fetchError) {
+                console.error('Query error:', fetchError);
+                return {
+                    error: 'Failed to fetch transactions',
+                    transactions: [],
+                    totalPages: 0,
+                    currentPage: 1,
+                    categories: [],
+                    defaultFromDate: filters.dateRange.from,
+                    filters,
+                    shouldRedirectToPage1: page > 1
+                };
+            }
+            
+            // Calculate total amount for each transaction
+            const transactionsWithAmount = allTransactions.map(transaction => ({
+                ...transaction,
+                totalAmount: transaction.categories.reduce((sum, tc) => sum + tc.amount, 0)
+            }));
+            
+            // Sort by total amount
+            transactionsWithAmount.sort((a, b) => {
+                return filters.sort.direction === 'asc'
+                    ? a.totalAmount - b.totalAmount
+                    : b.totalAmount - a.totalAmount;
+            });
+            
+            // Apply pagination after sorting
+            const paginatedTransactions = transactionsWithAmount.slice(offset, offset + PAGE_SIZE);
+            
+            // Fetch categories separately
+            const { data: categories } = await supabase
+                .from('categories')
+                .select('id, name, subcategories (id, category_id, name)')
+                .order('name');
+                
+            return {
+                transactions: paginatedTransactions as Transaction[] ?? [],
+                totalPages,
+                currentPage: page,
+                categories: categories ?? [],
+                defaultFromDate: filters.dateRange.from,
+                filters,
+                shouldRedirectToPage1: page > totalPages
+            };
         } else {
             const ascending = filters.sort?.direction === 'asc';
             switch (filters.sort?.column) {
@@ -179,32 +229,18 @@ export const load: PageServerLoad = async ({ depends, locals: { supabase }, url 
                 totalPages: 0,
                 currentPage: 1,
                 categories: categories ?? [],
-                defaultFromDate: DEFAULT_FROM_DATE,
+                defaultFromDate: filters.dateRange.from,
                 filters,
                 shouldRedirectToPage1: page > 1
             };
         }
 
-        // Handle amount sorting separately
-        let finalTransactions = transactions;
-        if (filters.sort?.column === 'amount' && finalTransactions) {
-            const sortedTransactions = finalTransactions.map(transaction => ({
-                ...transaction,
-                totalAmount: transaction.categories.reduce((sum, tc) => sum + tc.amount, 0)
-            })).sort((a, b) => {
-                return filters.sort.direction === 'asc'
-                    ? a.totalAmount - b.totalAmount
-                    : b.totalAmount - a.totalAmount;
-            });
-            finalTransactions = sortedTransactions;
-        }
-
         return {
-            transactions: finalTransactions as Transaction[] ?? [],
+            transactions: transactions as Transaction[] ?? [],
             totalPages,
             currentPage: page,
             categories: categories ?? [],
-            defaultFromDate: DEFAULT_FROM_DATE,
+            defaultFromDate: filters.dateRange.from,
             filters,
             shouldRedirectToPage1: page > totalPages
         };
@@ -225,7 +261,7 @@ export const actions = {
                 .select(TRANSACTION_SELECT, { count: 'exact' });
 
             // Apply date range filter first (most restrictive)
-            const fromDate = filters.dateRange.from || DEFAULT_FROM_DATE;
+            const fromDate = filters.dateRange.from || getDefaultMonthDateRange().from;
             query = query.gte('operation_date', fromDate);
             if (filters.dateRange.to) {
                 query = query.lte('operation_date', filters.dateRange.to);

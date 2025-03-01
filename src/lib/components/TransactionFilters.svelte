@@ -2,6 +2,7 @@
     import type { Category } from '$lib/types';
     import type { TransactionFilterState, AnalyticsFilterState } from '$lib/types/filters';
     import { createEventDispatcher } from 'svelte';
+    import DateRangeFilter from './DateRangeFilter.svelte';
 
     const props = $props<{
         filters: TransactionFilterState | AnalyticsFilterState;
@@ -30,12 +31,16 @@
     // Local state for dropdowns
     let isCategoriesDropdownOpen = $state(false);
     let isSubcategoriesDropdownOpen = $state(false);
-    let isDateRangeOpen = $state(false);
     let isSearchOpen = $state(false);
     let isPeriodOpen = $state(false);
 
     function handleFilterChange() {
         dispatch('filterChange', { filters, currentPage: 1 });
+    }
+
+    function handleDateRangeChange(event: CustomEvent<{ from: string; to: string }>) {
+        props.filters.dateRange = event.detail;
+        handleFilterChange();
     }
 
     function clearFilters() {
@@ -163,13 +168,17 @@
     {#each Object.entries(filters) as [key, value]}
         {#if typeof value === 'object' && value !== null}
             {#each Object.entries(value) as [subKey, subValue]}
-                {#if Array.isArray(subValue)}
+                {#if key === 'dateRange' && subKey === 'from' && subValue}
+                    <input type="hidden" name="dateFrom" value={subValue?.toString() || ''} />
+                {:else if key === 'dateRange' && subKey === 'to' && subValue}
+                    <input type="hidden" name="dateTo" value={subValue?.toString() || ''} />
+                {:else if Array.isArray(subValue)}
                     {#each subValue as item}
                         <input type="hidden" name={`${key}.${subKey}[]`} value={item} />
                     {/each}
                 {:else if typeof subValue === 'boolean'}
                     <input type="hidden" name={`${key}.${subKey}`} value={subValue ? 'true' : 'false'} />
-                {:else}
+                {:else if key !== 'dateRange'}
                     <input type="hidden" name={`${key}.${subKey}`} value={subValue?.toString() || ''} />
                 {/if}
             {/each}
@@ -208,39 +217,8 @@
             </div>
         </div>
 
-        <!-- Transaction Type Filter - Toggle Buttons -->
-        <div>
-            <div class="relative flex p-0.5 bg-gray-100 dark:bg-gray-800 rounded-lg">
-                <button 
-                    type="button" 
-                    class="relative flex-1 py-1.5 px-3 text-xs font-medium rounded-md transition-all duration-200 flex items-center justify-center gap-1"
-                    class:bg-white={filters.type.value === 'income'}
-                    class:text-green-700={filters.type.value === 'income'}
-                    class:shadow-sm={filters.type.value === 'income'}
-                    class:dark:bg-slate-700={filters.type.value === 'income'}
-                    class:dark:text-green-400={filters.type.value === 'income'}
-                    class:text-gray-600={filters.type.value !== 'income'}
-                    class:dark:text-gray-400={filters.type.value !== 'income'}
-                    onclick={() => setTransactionType('income')}
-                >
-                    Income 🤑
-                </button>
-                <button 
-                    type="button" 
-                    class="relative flex-1 py-1.5 px-3 text-xs font-medium rounded-md transition-all duration-200 flex items-center justify-center gap-1"
-                    class:bg-white={filters.type.value === 'expense'}
-                    class:text-red-700={filters.type.value === 'expense'}
-                    class:shadow-sm={filters.type.value === 'expense'}
-                    class:dark:bg-slate-700={filters.type.value === 'expense'}
-                    class:dark:text-red-400={filters.type.value === 'expense'}
-                    class:text-gray-600={filters.type.value !== 'expense'}
-                    class:dark:text-gray-400={filters.type.value !== 'expense'}
-                    onclick={() => setTransactionType('expense')}
-                >
-                    Expense 😭
-                </button>
-            </div>
-        </div>
+        <!-- Date Range Filter Component -->
+        <DateRangeFilter dateRange={filters.dateRange} on:change={handleDateRangeChange} />
 
         <!-- Period Dropdown (for Analytics) -->
         {#if filters.period}
@@ -293,53 +271,6 @@
             {/if}
         </div>
         {/if}
-
-        <!-- Date Range Dropdown -->
-        <div>
-            <button 
-                type="button" 
-                class="flex justify-between items-center w-full py-2 px-3 text-xs font-medium rounded-lg border border-gray-200 bg-white text-gray-800 hover:bg-gray-50 dark:bg-slate-900 dark:border-gray-700 dark:text-white dark:hover:bg-gray-800"
-                onclick={() => isDateRangeOpen = !isDateRangeOpen}
-            >
-                <span class="flex items-center gap-1">
-                    <svg class="flex-shrink-0 size-3.5" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
-                    Date Range
-                    {#if filters.dateRange.from || filters.dateRange.to}
-                        <span class="inline-flex items-center py-0.5 px-1.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300">
-                            Active
-                        </span>
-                    {/if}
-                </span>
-                <svg class="flex-shrink-0 size-3.5 transition-transform" class:rotate-180={isDateRangeOpen} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
-            </button>
-            
-            {#if isDateRangeOpen}
-                <div class="mt-2 p-2 bg-gray-50 border border-gray-200 rounded-lg dark:bg-slate-800 dark:border-gray-700">
-                    <div class="grid grid-cols-2 gap-2">
-                        <div>
-                            <label for="date-from" class="block text-xs font-medium mb-1 dark:text-white">From</label>
-                            <input 
-                                id="date-from"
-                                type="date" 
-                                class="py-1 px-2 block w-full border-gray-200 rounded-lg text-xs focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:text-gray-400 dark:focus:ring-gray-600"
-                                bind:value={filters.dateRange.from}
-                                onchange={handleFilterChange}
-                            />
-                        </div>
-                        <div>
-                            <label for="date-to" class="block text-xs font-medium mb-1 dark:text-white">To</label>
-                            <input 
-                                id="date-to"
-                                type="date" 
-                                class="py-1 px-2 block w-full border-gray-200 rounded-lg text-xs focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:text-gray-400 dark:focus:ring-gray-600"
-                                bind:value={filters.dateRange.to}
-                                onchange={handleFilterChange}
-                            />
-                        </div>
-                    </div>
-                </div>
-            {/if}
-        </div>
 
         <!-- Search Dropdown -->
         <div>

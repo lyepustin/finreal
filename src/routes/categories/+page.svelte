@@ -7,26 +7,45 @@
     import TransactionPagination from '$lib/components/TransactionPagination.svelte'
     import DateRangeFilter from '$lib/components/DateRangeFilter.svelte'
     import { isEqual } from 'lodash'
+    import { getDefaultMonthDateRange } from '$lib/utils/dates'
 
     let { data } = $props<{ data: PageData }>();
 
     let currentPage = $state(data.currentPage);
     let filters = $state<CategoryFilters>(data.filters);
     let isUpdating = $state(false);
+    let isInitialLoad = $state(true);
     
-    // Initialize default dates if not provided
+    // Get current URL for checking parameters
+    const url = $state(browser ? new URL(window.location.href) : null);
+    
+    $effect(() => {
+        if (browser) {
+            url.href = window.location.href;
+        }
+    });
+    
+    // Initialize default dates if not provided and update URL on initial load
     $effect(() => {
         if (!browser || isUpdating) return;
         
-        const now = new Date();
-        const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-        const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        // If URL already has date parameters, don't modify filters
+        if (url.searchParams.has('dateFrom') && url.searchParams.has('dateTo')) {
+            isInitialLoad = false;
+            return;
+        }
+        
+        // Get default date range
+        const defaultDateRange = getDefaultMonthDateRange();
+        
+        // Only log once during development
+        console.log('Client default dates:', defaultDateRange);
         
         const defaultFilters = {
             ...filters,
             dateRange: {
-                from: filters.dateRange.from || firstDayOfMonth.toISOString().split('T')[0],
-                to: filters.dateRange.to || lastDayOfMonth.toISOString().split('T')[0]
+                from: filters.dateRange.from || defaultDateRange.from,
+                to: filters.dateRange.to || defaultDateRange.to
             }
         };
         
@@ -35,6 +54,10 @@
             filters = defaultFilters;
             updateURL();
             isUpdating = false;
+        } else if (isInitialLoad) {
+            // If it's the initial load, update URL
+            isInitialLoad = false;
+            updateURL();
         }
     });
     
@@ -67,10 +90,10 @@
         
         // Preserve date range if it exists with correct parameter names
         if (filters.dateRange.from) {
-            params.set('dateRange.from', filters.dateRange.from);
+            params.set('dateFrom', filters.dateRange.from);
         }
         if (filters.dateRange.to) {
-            params.set('dateRange.to', filters.dateRange.to);
+            params.set('dateTo', filters.dateRange.to);
         }
 
         // Navigate to transactions with the parameters
@@ -79,6 +102,12 @@
 
     async function handleDateRangeChange({ detail: dateRange }: CustomEvent<CategoryFilters['dateRange']>) {
         if (isUpdating) return;
+        
+        // Validate that we have both dates to prevent database errors
+        if (!dateRange.from || !dateRange.to) {
+            console.warn("Invalid date range received:", dateRange);
+            return;
+        }
         
         isUpdating = true;
         filters = {
@@ -97,7 +126,7 @@
         
         const params = new URLSearchParams();
         
-        // Add date range parameters
+        // Add date range parameters - ensure we have valid dates
         if (filters.dateRange.from) {
             params.set('dateFrom', filters.dateRange.from);
         }
@@ -112,6 +141,11 @@
 
         // Update URL without reloading the page
         await goto(`${window.location.pathname}?${params.toString()}`, { replaceState: true });
+        
+        // Update the url state to reflect the new URL
+        if (browser) {
+            url.href = window.location.href;
+        }
     }
 
     // Update data effect

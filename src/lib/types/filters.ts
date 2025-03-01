@@ -101,17 +101,9 @@ export interface CategoryFilters {
     dateRange: DateRangeFilter;
 }
 
+// Import the utility function
+import { getDefaultMonthDateRange } from '$lib/utils/dates';
+
 export const DEFAULT_CATEGORY_FILTERS: CategoryFilters = {
-    dateRange: {
-        from: (() => {
-            const now = new Date();
-            return new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-        })(),
-        to: (() => {
-            const now = new Date();
-            // Get the last day of the current month
-            const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-            return lastDay.toISOString().split('T')[0];
-        })()
-    }
+    dateRange: getDefaultMonthDateRange()
 }; 

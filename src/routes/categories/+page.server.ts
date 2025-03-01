@@ -1,19 +1,31 @@
 import type { PageServerLoad } from './$types'
 import { measureAsync } from '$lib/utils/performance';
 import type { CategoryFilters } from '$lib/types/filters';
+import { getDefaultMonthDateRange } from '$lib/utils/dates';
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 18;
 
 function parseFilters(searchParams: URLSearchParams): CategoryFilters {
     // Get dates from URL parameters
     const fromParam = searchParams.get('dateFrom');
     const toParam = searchParams.get('dateTo');
 
+    // Get default date range for current month
+    const defaultDateRange = getDefaultMonthDateRange();
+
+    // Log the parameters for debugging
+    console.log('URL date parameters:', { fromParam, toParam });
+    console.log('Default dates:', defaultDateRange);
+    
+    const dateRange = { 
+        from: fromParam || defaultDateRange.from,
+        to: toParam || defaultDateRange.to
+    };
+    
+    console.log('Using date range:', dateRange);
+    
     return {
-        dateRange: { 
-            from: fromParam || '',
-            to: toParam || ''
-        }
+        dateRange
     };
 }
 
@@ -53,13 +65,17 @@ export const load: PageServerLoad = async ({ depends, locals: { supabase }, url 
             `);
 
         // Apply date range filter to transactions
-        query.gte('transactions.transaction.operation_date', filters.dateRange.from);
+        if (filters.dateRange.from) {
+            query.gte('transactions.transaction.operation_date', filters.dateRange.from);
+        }
         if (filters.dateRange.to) {
             query.lte('transactions.transaction.operation_date', filters.dateRange.to);
         }
 
         // Apply the same date range filter to subcategory transactions
-        query.gte('subcategories.transactions.transaction.operation_date', filters.dateRange.from);
+        if (filters.dateRange.from) {
+            query.gte('subcategories.transactions.transaction.operation_date', filters.dateRange.from);
+        }
         if (filters.dateRange.to) {
             query.lte('subcategories.transactions.transaction.operation_date', filters.dateRange.to);
         }
@@ -118,9 +134,9 @@ export const load: PageServerLoad = async ({ depends, locals: { supabase }, url 
 
         // Handle pagination
         const totalPages = Math.ceil(sortedCategories.length / PAGE_SIZE);
-        const page = 1;
-        const start = 0;
-        const end = PAGE_SIZE;
+        const page = parseInt(url.searchParams.get('page') || '1', 10);
+        const start = (page - 1) * PAGE_SIZE;
+        const end = start + PAGE_SIZE;
         const paginatedCategories = sortedCategories.slice(start, end);
 
         return {

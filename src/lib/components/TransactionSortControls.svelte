@@ -8,55 +8,103 @@
 
     const dispatch = createEventDispatcher<{
         sortChange: { column: TransactionFilterState['sort']['column'] };
+        typeChange: { type: 'all' | 'income' | 'expense' };
     }>();
 
     function handleSort(column: TransactionFilterState['sort']['column']) {
         dispatch('sortChange', { column });
     }
+
+    function cycleTransactionType() {
+        const currentType = filters.type.value;
+        let newType: 'all' | 'income' | 'expense';
+        
+        // Cycle through: all -> income -> expense -> all
+        if (currentType === 'all') {
+            newType = 'income';
+        } else if (currentType === 'income') {
+            newType = 'expense';
+        } else {
+            newType = 'all';
+        }
+        
+        dispatch('typeChange', { type: newType });
+    }
+
+    function getTypeLabel() {
+        switch (filters.type.value) {
+            case 'income':
+                return '🤑 Income';
+            case 'expense':
+                return '😭 Expense';
+            default:
+                return '💰 All';
+        }
+    }
+
+    function getTypeClasses() {
+        const baseClasses = "flex-1 p-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors duration-200 text-xs font-medium text-center";
+        
+        switch (filters.type.value) {
+            case 'income':
+                return `${baseClasses} bg-gray-100 text-green-700 dark:bg-gray-800 dark:text-green-400`;
+            case 'expense':
+                return `${baseClasses} bg-gray-100 text-red-700 dark:bg-gray-800 dark:text-red-400`;
+            default:
+                return `${baseClasses} text-gray-700 dark:text-gray-300`;
+        }
+    }
 </script>
 
-<div class="flex flex-wrap gap-2 mb-4">
-    <span class="text-sm text-gray-500 dark:text-gray-400">Sort by:</span>
-    <button 
-        type="button"
-        onclick={() => handleSort('date')}
-        class="py-1 px-2 inline-flex items-center gap-x-1 text-xs font-medium rounded-full border border-gray-200 bg-white text-gray-800 shadow-sm hover:bg-gray-50 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:text-white dark:hover:bg-gray-800 dark:focus:outline-none dark:focus:ring-1 dark:focus:ring-gray-600"
-        class:bg-blue-100={filters.sort.column === 'date'}
-        class:text-blue-800={filters.sort.column === 'date'}
-        class:dark:bg-blue-900={filters.sort.column === 'date'}
-        class:dark:text-blue-300={filters.sort.column === 'date'}
-    >
-        Date
-        {#if filters.sort.column === 'date'}
-            <span>{filters.sort.direction === 'asc' ? '↑' : '↓'}</span>
-        {/if}
-    </button>
-    <button 
-        type="button"
-        onclick={() => handleSort('description')}
-        class="py-1 px-2 inline-flex items-center gap-x-1 text-xs font-medium rounded-full border border-gray-200 bg-white text-gray-800 shadow-sm hover:bg-gray-50 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:text-white dark:hover:bg-gray-800 dark:focus:outline-none dark:focus:ring-1 dark:focus:ring-gray-600"
-        class:bg-blue-100={filters.sort.column === 'description'}
-        class:text-blue-800={filters.sort.column === 'description'}
-        class:dark:bg-blue-900={filters.sort.column === 'description'}
-        class:dark:text-blue-300={filters.sort.column === 'description'}
-    >
-        Description
-        {#if filters.sort.column === 'description'}
-            <span>{filters.sort.direction === 'asc' ? '↑' : '↓'}</span>
-        {/if}
-    </button>
-    <button 
-        type="button"
-        onclick={() => handleSort('amount')}
-        class="py-1 px-2 inline-flex items-center gap-x-1 text-xs font-medium rounded-full border border-gray-200 bg-white text-gray-800 shadow-sm hover:bg-gray-50 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:text-white dark:hover:bg-gray-800 dark:focus:outline-none dark:focus:ring-1 dark:focus:ring-gray-600"
-        class:bg-blue-100={filters.sort.column === 'amount'}
-        class:text-blue-800={filters.sort.column === 'amount'}
-        class:dark:bg-blue-900={filters.sort.column === 'amount'}
-        class:dark:text-blue-300={filters.sort.column === 'amount'}
-    >
-        Amount
-        {#if filters.sort.column === 'amount'}
-            <span>{filters.sort.direction === 'asc' ? '↑' : '↓'}</span>
-        {/if}
-    </button>
+<div class="bg-white border border-gray-200 rounded-xl shadow-sm dark:bg-slate-900 dark:border-gray-700">
+    <div class="flex items-stretch divide-x divide-gray-200 dark:divide-gray-700">
+        <button 
+            type="button"
+            onclick={cycleTransactionType}
+            class="flex-1 p-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors duration-200 text-xs font-medium text-center"
+            class:bg-green-50={filters.type.value === 'income'}
+            class:bg-red-50={filters.type.value === 'expense'}
+            class:text-green-700={filters.type.value === 'income'}
+            class:text-red-700={filters.type.value === 'expense'}
+            class:dark:bg-green-800={filters.type.value === 'income'}
+            class:dark:bg-red-800={filters.type.value === 'expense'}
+            class:dark:bg-opacity-20={filters.type.value !== 'all'}
+            class:dark:text-green-400={filters.type.value === 'income'}
+            class:dark:text-red-400={filters.type.value === 'expense'}
+        >
+            {getTypeLabel()}
+        </button>
+        <button 
+            type="button"
+            onclick={() => handleSort('date')}
+            class="flex-1 p-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors duration-200 text-xs font-medium inline-flex items-center justify-center gap-1"
+            class:bg-blue-100={filters.sort.column === 'date'}
+            class:text-blue-700={filters.sort.column === 'date'}
+            class:dark:bg-blue-900={filters.sort.column === 'date'}
+            class:dark:text-blue-400={filters.sort.column === 'date'}
+        >
+            <span class="inline-flex items-center gap-1">
+                📅 Date
+            </span>
+            {#if filters.sort.column === 'date'}
+                <span class="text-xs">{filters.sort.direction === 'asc' ? '↑' : '↓'}</span>
+            {/if}
+        </button>
+        <button 
+            type="button"
+            onclick={() => handleSort('amount')}
+            class="flex-1 p-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors duration-200 text-xs font-medium inline-flex items-center justify-center gap-1"
+            class:bg-blue-100={filters.sort.column === 'amount'}
+            class:text-blue-700={filters.sort.column === 'amount'}
+            class:dark:bg-blue-900={filters.sort.column === 'amount'}
+            class:dark:text-blue-400={filters.sort.column === 'amount'}
+        >
+            <span class="inline-flex items-center gap-1">
+                💲 Amount
+            </span>
+            {#if filters.sort.column === 'amount'}
+                <span class="text-xs">{filters.sort.direction === 'asc' ? '↑' : '↓'}</span>
+            {/if}
+        </button>
+    </div>
 </div> 
