@@ -81,14 +81,9 @@ export const load: PageServerLoad = async ({ depends, locals: { supabase }, url 
 
         // Process and aggregate the data
         const processedCategories = categoriesData?.map(category => {
-            // Calculate category totals
-            const transactions = category.transactions || [];
-            const total = transactions.reduce((sum, tc) => sum + (tc.amount || 0), 0);
-            const transactionCount = transactions.length;
-
-            // Process subcategories
+            // Process subcategories first
             const subcategories = (category.subcategories || []).map(sub => {
-                const subTotal = (sub.transactions || []).reduce((sum, tc) => sum + (tc.amount || 0), 0);
+                const subTotal = Math.round((sub.transactions || []).reduce((sum, tc) => sum + (tc.amount || 0), 0));
                 const transactionCount = (sub.transactions || []).length;
                 return {
                     id: sub.id,
@@ -97,6 +92,10 @@ export const load: PageServerLoad = async ({ depends, locals: { supabase }, url 
                     transactionCount
                 };
             }).sort((a, b) => Math.abs(b.total) - Math.abs(a.total));
+
+            // Calculate category total from subcategories (keep decimals for main total)
+            const total = subcategories.reduce((sum, sub) => sum + sub.total, 0);
+            const transactionCount = subcategories.reduce((sum, sub) => sum + sub.transactionCount, 0);
 
             return {
                 id: category.id,
