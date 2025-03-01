@@ -39,7 +39,7 @@ const TRANSACTION_SELECT = `
     )
 `;
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 18;
 
 interface FilterOptions {
     type: { value: 'all' | 'income' | 'expense' };

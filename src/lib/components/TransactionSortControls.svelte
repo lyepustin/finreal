@@ -1,14 +1,20 @@
 <script lang="ts">
     import type { TransactionFilterState } from '$lib/types/filters';
+    import type { Category } from '$lib/types';
     import { createEventDispatcher } from 'svelte';
+    import CategoryFilterModal from './CategoryFilterModal.svelte';
 
-    const { filters } = $props<{ 
-        filters: TransactionFilterState 
+    const { filters, categories } = $props<{ 
+        filters: TransactionFilterState,
+        categories: Category[]
     }>();
+
+    let isCategoryModalOpen = $state(false);
 
     const dispatch = createEventDispatcher<{
         sortChange: { column: TransactionFilterState['sort']['column'] };
         typeChange: { type: 'all' | 'income' | 'expense' };
+        categoryChange: { selected: string[], isNegative: boolean };
     }>();
 
     function handleSort(column: TransactionFilterState['sort']['column']) {
@@ -54,6 +60,29 @@
                 return `${baseClasses} text-gray-700 dark:text-gray-300`;
         }
     }
+
+    function openCategoryModal() {
+        isCategoryModalOpen = true;
+    }
+
+    function handleCategoryModalClose() {
+        isCategoryModalOpen = false;
+    }
+
+    function handleCategoryChange(event: CustomEvent<{ selected: string[], isNegative: boolean }>) {
+        dispatch('categoryChange', {
+            selected: event.detail.selected,
+            isNegative: event.detail.isNegative
+        });
+    }
+
+    function getCategoryFilterLabel() {
+        const count = filters.categories.selected.length;
+        if (count === 0) {
+            return '🔍 Filters';
+        }
+        return `🔍 Filters (${count})`;
+    }
 </script>
 
 <div class="bg-white border border-gray-200 rounded-xl shadow-sm dark:bg-slate-900 dark:border-gray-700">
@@ -73,6 +102,18 @@
             class:dark:text-red-400={filters.type.value === 'expense'}
         >
             {getTypeLabel()}
+        </button>
+        <button 
+            type="button"
+            onclick={openCategoryModal}
+            class="flex-1 p-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors duration-200 text-xs font-medium text-center"
+            class:bg-purple-50={filters.categories.selected.length > 0}
+            class:text-purple-700={filters.categories.selected.length > 0}
+            class:dark:bg-purple-900={filters.categories.selected.length > 0}
+            class:dark:bg-opacity-20={filters.categories.selected.length > 0}
+            class:dark:text-purple-400={filters.categories.selected.length > 0}
+        >
+            {getCategoryFilterLabel()}
         </button>
         <button 
             type="button"
@@ -108,3 +149,12 @@
         </button>
     </div>
 </div> 
+
+<CategoryFilterModal 
+    isOpen={isCategoryModalOpen}
+    categories={categories}
+    selectedCategories={filters.categories.selected}
+    isNegative={filters.categories.isNegative}
+    on:close={handleCategoryModalClose}
+    on:apply={handleCategoryChange}
+/> 

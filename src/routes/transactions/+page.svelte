@@ -81,6 +81,15 @@
         submitFilters();
     }
 
+    function handleCategoryChange({ detail }: CustomEvent<{ selected: string[], isNegative: boolean }>) {
+        filters.categories = {
+            selected: detail.selected,
+            isNegative: detail.isNegative
+        };
+        currentPage = 1;
+        submitFilters();
+    }
+
     function handlePageChange({ detail }: CustomEvent<{ page: number }>) {
         if (detail.page < 1 || detail.page > totalPages) return;
         currentPage = detail.page;
@@ -115,6 +124,14 @@
             searchParams.set('sort.direction', filters.sort.direction);
             searchParams.set('type.value', filters.type.value);
             searchParams.set('page', currentPage.toString());
+            
+            // Add category filters
+            if (filters.categories.selected.length > 0) {
+                filters.categories.selected.forEach(categoryId => {
+                    searchParams.append('categories.selected[]', categoryId);
+                });
+                searchParams.set('categories.isNegative', filters.categories.isNegative.toString());
+            }
 
             await goto(`${window.location.pathname}?${searchParams.toString()}`, { keepFocus: true });
         } catch (error) {
@@ -149,8 +166,10 @@
         <div class="mb-4">
             <TransactionSortControls 
                 filters={filters}
+                categories={data.categories}
                 on:sortChange={handleSortChange}
                 on:typeChange={handleTypeChange}
+                on:categoryChange={handleCategoryChange}
             />
         </div>
 
