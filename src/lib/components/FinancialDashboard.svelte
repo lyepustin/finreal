@@ -302,7 +302,7 @@
                 return `1 ${monthName} - ${lastDay} ${monthName} ${year}`;
             }
             case 'year':
-                return `1 Jan - 31 Dec ${year}`;
+                return `1 Jan - 31 Dec ${monthName}`;
             default:
                 // Get the last day of the selected month
                 const lastDay = new Date(year, month + 1, 0).getDate();
