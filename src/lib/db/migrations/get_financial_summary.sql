@@ -1,6 +1,7 @@
 CREATE OR REPLACE FUNCTION get_financial_summary(
     period_type TEXT DEFAULT 'month',
-    num_periods INTEGER DEFAULT 5
+    num_periods INTEGER DEFAULT 5,
+    period_offset INTEGER DEFAULT 0
 )
 RETURNS TABLE (
     period TEXT,
@@ -18,16 +19,22 @@ BEGIN
         RAISE EXCEPTION 'Invalid period_type. Must be either "month" or "year"';
     END IF;
 
+    IF period_offset < 0 THEN
+        RAISE EXCEPTION 'period_offset must be non-negative';
+    END IF;
+
     -- Calculate date range
-    end_date := CURRENT_DATE;
-    
     IF period_type = 'month' THEN
-        -- For monthly data, start from the first day of the month num_periods months ago
-        start_date := DATE_TRUNC('month', CURRENT_DATE - (num_periods - 1 || ' months')::INTERVAL);
+        -- For monthly data, end date is the last day of the current month minus offset months
+        end_date := DATE_TRUNC('month', CURRENT_DATE - (period_offset || ' months')::INTERVAL) + INTERVAL '1 month' - INTERVAL '1 day';
+        -- Start from the first day of the month num_periods months before end_date
+        start_date := DATE_TRUNC('month', end_date - ((num_periods - 1) || ' months')::INTERVAL);
         interval_step := '1 month'::INTERVAL;
     ELSE
-        -- For yearly data, start from the first day of the year num_periods years ago
-        start_date := DATE_TRUNC('year', CURRENT_DATE - (num_periods - 1 || ' years')::INTERVAL);
+        -- For yearly data, end date is the last day of the current year minus offset years
+        end_date := DATE_TRUNC('year', CURRENT_DATE - (period_offset || ' years')::INTERVAL) + INTERVAL '1 year' - INTERVAL '1 day';
+        -- Start from the first day of the year num_periods years before end_date
+        start_date := DATE_TRUNC('year', end_date - ((num_periods - 1) || ' years')::INTERVAL);
         interval_step := '1 year'::INTERVAL;
     END IF;
 

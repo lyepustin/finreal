@@ -33,6 +33,7 @@
     let canvas = $state<HTMLCanvasElement | undefined>(undefined);
     let selectedPeriod = $state('month');
     let selectedBarIndex = $state(5);
+    let currentOffset = $state(0); // Track how many periods we've moved back
     let selectedBarData = $state<ChartDataPoint>({
         income: 0,
         expenses: 0,
@@ -54,8 +55,8 @@
         error = '';
         
         try {
-            // Add count parameter to get 5 periods of data
-            const response = await fetch(`/api/financial-data?period=${selectedPeriod}&count=5`);
+            // Add count and offset parameters to get correct period of data
+            const response = await fetch(`/api/financial-data?period=${selectedPeriod}&count=5&offset=${currentOffset}`);
             
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
@@ -245,6 +246,7 @@
     // Handle period change
     function handlePeriodChange(period: string) {
         selectedPeriod = period;
+        currentOffset = 0; // Reset offset when changing period type
         isDropdownOpen = false; // Close dropdown after selection
         fetchData(); // Fetch new data for the selected period
     }
@@ -314,6 +316,19 @@
     function getMonthName(monthIndex) {
         const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
         return monthNames[monthIndex];
+    }
+
+    // Navigation functions
+    async function navigateBack() {
+        currentOffset += 5;
+        await fetchData();
+    }
+
+    async function navigateForward() {
+        if (currentOffset >= 5) {
+            currentOffset -= 5;
+            await fetchData();
+        }
     }
 
     onMount(() => {
@@ -392,40 +407,69 @@
             </div>
 
             <!-- Chart Container -->
-            <div class="chart-container bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 mb-6" bind:this={chartContainer}>
+            <div class="chart-container bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 mb-6 relative" bind:this={chartContainer}>
+                <!-- Navigation Buttons -->
+                <button 
+                    class="navigation-button left-2"
+                    onclick={() => navigateBack()}
+                    aria-label="View previous periods">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                    </svg>
+                </button>
+                <button 
+                    class="navigation-button right-2 {currentOffset === 0 ? 'invisible' : ''}"
+                    onclick={() => navigateForward()}
+                    aria-label="View next periods">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                    </svg>
+                </button>
                 <canvas bind:this={canvas}></canvas>
             </div>
 
             <!-- Summary Stats -->
             <div class="summary-stats">
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <!-- Income -->
-                    <div class="stat-card">
-                        <div class="flex items-center justify-between">
-                            <div class="flex items-center">
-                                <div class="w-3 h-3 rounded-full bg-blue-500 mr-2"></div>
-                                <span class="text-gray-600 dark:text-gray-400">Income</span>
-                            </div>
-                            <div class="text-xl font-semibold text-gray-800 dark:text-gray-200">{formatEuro(selectedBarData.income)}</div>
+                <div class="grid grid-cols-3 gap-2 sm:gap-3">
+                    <!-- Income Card -->
+                    <div class="stat-card flex flex-col">
+                        <span class="text-xs sm:text-sm font-medium text-gray-500 dark:text-gray-400 mb-0.5 sm:mb-1">Income</span>
+                        <div class="flex items-center space-x-1.5 sm:space-x-2">
+                            <div class="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-blue-500"></div>
+                            <span class="text-lg sm:text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-100">
+                                {formatEuro(selectedBarData.income)}
+                            </span>
                         </div>
                     </div>
                     
-                    <!-- Expenses -->
-                    <div class="stat-card">
-                        <div class="flex items-center justify-between">
-                            <div class="flex items-center">
-                                <div class="w-3 h-3 rounded-full bg-red-500 mr-2"></div>
-                                <span class="text-gray-600 dark:text-gray-400">Expenses</span>
-                            </div>
-                            <div class="text-xl font-semibold text-gray-800 dark:text-gray-200">{formatEuro(selectedBarData.expenses)}</div>
+                    <!-- Expenses Card -->
+                    <div class="stat-card flex flex-col">
+                        <span class="text-xs sm:text-sm font-medium text-gray-500 dark:text-gray-400 mb-0.5 sm:mb-1">Expenses</span>
+                        <div class="flex items-center space-x-1.5 sm:space-x-2">
+                            <div class="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-red-500"></div>
+                            <span class="text-lg sm:text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-100">
+                                {formatEuro(selectedBarData.expenses)}
+                            </span>
                         </div>
                     </div>
                     
-                    <!-- Net -->
-                    <div class="stat-card">
-                        <div class="flex items-center justify-between">
-                            <span class="text-gray-600 dark:text-gray-400">Net</span>
-                            <div class="text-xl font-semibold text-gray-800 dark:text-gray-200">{formatEuro(selectedBarData.net)}</div>
+                    <!-- Net Card -->
+                    <div class="stat-card flex flex-col">
+                        <span class="text-xs sm:text-sm font-medium text-gray-500 dark:text-gray-400 mb-0.5 sm:mb-1">Net</span>
+                        <div class="flex items-center space-x-1.5 sm:space-x-2">
+                            <div class="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full" 
+                                 class:bg-green-500={selectedBarData.net > 0} 
+                                 class:bg-red-500={selectedBarData.net < 0} 
+                                 class:bg-gray-500={selectedBarData.net === 0}></div>
+                            <span class="text-lg sm:text-2xl font-semibold tracking-tight" 
+                                  class:text-green-600={selectedBarData.net > 0} 
+                                  class:text-red-600={selectedBarData.net < 0}
+                                  class:text-gray-600={selectedBarData.net === 0}
+                                  class:dark:text-green-400={selectedBarData.net > 0}
+                                  class:dark:text-red-400={selectedBarData.net < 0}
+                                  class:dark:text-gray-400={selectedBarData.net === 0}>
+                                {formatEuro(selectedBarData.net)}
+                            </span>
                         </div>
                     </div>
                 </div>
@@ -449,23 +493,78 @@
     }
     
     .chart-container {
-        height: 200px; /* Reduced height by half */
+        height: 200px;
         width: 100%;
+        margin-bottom: 1rem;
     }
     
     .stat-card {
-        background-color: white;
-        border-radius: 0.75rem;
-        padding: 0.75rem; /* Reduced padding */
-        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        background-color: rgba(255, 255, 255, 0.8);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        border-radius: 1rem;
+        padding: 1rem;
+        border: 1px solid rgba(229, 231, 235, 0.5);
+        transition: all 0.2s ease-in-out;
+    }
+    
+    .stat-card:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
     }
     
     /* Dark mode support */
+    :global(.dark) .stat-card {
+        background-color: rgba(31, 41, 55, 0.8);
+        border-color: rgba(55, 65, 81, 0.5);
+    }
+    
     :global(.dark) .analysis-section {
         background-color: #1e293b;
     }
-    
-    :global(.dark) .stat-card {
-        background-color: #334155;
+
+    .navigation-button {
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        background-color: rgba(255, 255, 255, 0.8);
+        color: #4B5563;
+        padding: 0.375rem;
+        border-radius: 9999px;
+        cursor: pointer;
+        transition: all 0.2s ease-in-out;
+        z-index: 10;
+        border: 1px solid #E5E7EB;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        line-height: 0;
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+    }
+
+    .navigation-button:hover {
+        background-color: rgba(255, 255, 255, 0.95);
+        color: #1F2937;
+    }
+
+    :global(.dark) .navigation-button {
+        background-color: rgba(31, 41, 55, 0.8);
+        color: #9CA3AF;
+        border-color: #374151;
+    }
+
+    :global(.dark) .navigation-button:hover {
+        background-color: rgba(31, 41, 55, 0.95);
+        color: #F3F4F6;
+    }
+
+    @media (max-width: 640px) {
+        .stat-card {
+            padding: 0.75rem;
+            font-size: 0.875rem;
+        }
+        
+        .chart-container {
+            height: 180px;
+        }
     }
 </style>
