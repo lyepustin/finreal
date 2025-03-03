@@ -9,6 +9,7 @@
         Tooltip,
         Legend
     } from 'chart.js';
+    import CategoryPieChart from './CategoryPieChart.svelte';
 
     // Register Chart.js components
     Chart.register(
@@ -25,6 +26,12 @@
         income: number;
         expenses: number;
         net: number;
+        categories: Array<{
+            id: string;
+            name: string;
+            amount: number;
+            emoji: string;
+        }>;
     };
 
     // State variables
@@ -38,7 +45,8 @@
         income: 0,
         expenses: 0,
         net: 0,
-        period: ''
+        period: '',
+        categories: []
     });
     let isDropdownOpen = $state(false);
     let isLoading = $state(true);
@@ -48,6 +56,47 @@
         from: '',
         to: ''
     });
+
+    // Process category data for pie chart
+    function processCategories(categories: ChartDataPoint['categories']) {
+        // Filter to only show expense categories (negative amounts)
+        const expenseCategories = categories.filter(cat => cat.amount < 0);
+        
+        // Calculate total expenses
+        const totalExpenses = expenseCategories.reduce((sum, cat) => sum + Math.abs(cat.amount), 0);
+        
+        // Sort categories by absolute amount
+        const sortedCategories = [...expenseCategories].sort((a, b) => 
+            Math.abs(b.amount) - Math.abs(a.amount)
+        );
+
+        // Separate categories into main and others (less than 5% of total)
+        const MINIMUM_PERCENTAGE = 0.05; // 5% threshold
+        const mainCategories: typeof sortedCategories = [];
+        const smallCategories: typeof sortedCategories = [];
+
+        sortedCategories.forEach(category => {
+            const percentage = Math.abs(category.amount) / totalExpenses;
+            if (percentage >= MINIMUM_PERCENTAGE && mainCategories.length < 5) {
+                mainCategories.push(category);
+            } else {
+                smallCategories.push(category);
+            }
+        });
+
+        // If we have small categories, combine them into "Others"
+        if (smallCategories.length > 0) {
+            const othersAmount = smallCategories.reduce((sum, cat) => sum + cat.amount, 0);
+            mainCategories.push({
+                id: 'others',
+                name: 'Others',
+                amount: othersAmount,
+                emoji: '🌈'
+            });
+        }
+
+        return mainCategories;
+    }
 
     // Fetch data from API
     async function fetchData() {
@@ -80,7 +129,8 @@
                         period: lastDate.toISOString().split('T')[0],
                         income: 0,
                         expenses: 0,
-                        net: 0
+                        net: 0,
+                        categories: []
                     });
                 }
             }
@@ -429,7 +479,7 @@
             </div>
 
             <!-- Summary Stats -->
-            <div class="summary-stats">
+            <div class="summary-stats mb-6">
                 <div class="grid grid-cols-3 gap-2 sm:gap-3">
                     <!-- Income Card -->
                     <div class="stat-card flex flex-col">
@@ -474,6 +524,11 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Category Pie Chart -->
+            {#if selectedBarData.categories?.length > 0}
+                <CategoryPieChart data={processCategories(selectedBarData.categories)} />
+            {/if}
         {/if}
     </div>
 </div>
@@ -483,13 +538,6 @@
         max-width: 1200px;
         margin: 0 auto;
         padding: 1rem;
-    }
-    
-    .analysis-section {
-        background-color: #f8fafc;
-        border-radius: 1rem;
-        padding: 1.5rem;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
     }
     
     .chart-container {
@@ -517,10 +565,6 @@
     :global(.dark) .stat-card {
         background-color: rgba(31, 41, 55, 0.8);
         border-color: rgba(55, 65, 81, 0.5);
-    }
-    
-    :global(.dark) .analysis-section {
-        background-color: #1e293b;
     }
 
     .navigation-button {

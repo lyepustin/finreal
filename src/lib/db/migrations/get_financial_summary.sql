@@ -1,3 +1,7 @@
+-- Drop existing function
+DROP FUNCTION IF EXISTS get_financial_summary(text, integer, integer);
+
+-- Create new function
 CREATE OR REPLACE FUNCTION get_financial_summary(
     period_type TEXT DEFAULT 'month',
     num_periods INTEGER DEFAULT 5,
@@ -7,7 +11,8 @@ RETURNS TABLE (
     period TEXT,
     income NUMERIC,
     expenses NUMERIC,
-    net NUMERIC
+    net NUMERIC,
+    categories JSONB
 ) AS $$
 DECLARE
     start_date DATE;
@@ -52,7 +57,8 @@ BEGIN
             DATE_TRUNC(period_type, date_series + interval_step) - INTERVAL '1 day' as period_end
         FROM generate_series(start_date, end_date, interval_step) as date_series
     ),
-    transactions_summary AS (
+    transactions_by_category AS (
+        -- First aggregate transactions by category within each period
         SELECT
             CASE 
                 WHEN period_type = 'month' THEN 
@@ -60,23 +66,42 @@ BEGIN
                 ELSE 
                     TO_CHAR(t.operation_date, 'YYYY')
             END as period_label,
-            COALESCE(SUM(CASE WHEN tc.amount > 0 THEN tc.amount ELSE 0 END), 0) as total_income,
-            COALESCE(SUM(CASE WHEN tc.amount < 0 THEN ABS(tc.amount) ELSE 0 END), 0) as total_expenses,
-            COALESCE(SUM(tc.amount), 0) as net_amount
+            c.id as category_id,
+            c.name as category_name,
+            SUM(tc.amount) as total_amount
         FROM transactions t
         JOIN transaction_categories tc ON tc.transaction_id = t.id
+        JOIN categories c ON c.id = tc.category_id
         WHERE t.operation_date BETWEEN start_date AND end_date
-        AND tc.category_id NOT IN (
-            SELECT id FROM public.categories 
-            WHERE LOWER(name) = 'transfers ♻️'
-        )
+        AND LOWER(c.name) != 'transfers ♻️'
+        GROUP BY 
+            period_label,
+            c.id,
+            c.name
+    ),
+    transactions_summary AS (
+        SELECT
+            period_label,
+            COALESCE(SUM(CASE WHEN total_amount > 0 THEN total_amount ELSE 0 END), 0) as total_income,
+            COALESCE(SUM(CASE WHEN total_amount < 0 THEN ABS(total_amount) ELSE 0 END), 0) as total_expenses,
+            COALESCE(SUM(total_amount), 0) as net_amount,
+            JSONB_AGG(
+                JSONB_BUILD_OBJECT(
+                    'id', category_id::TEXT,
+                    'name', REGEXP_REPLACE(category_name, '\s+\S+$', ''), -- Remove the last word (emoji)
+                    'amount', total_amount,
+                    'emoji', SUBSTRING(category_name FROM '\s*(\S+)$') -- Get the last word (emoji)
+                )
+            ) as categories
+        FROM transactions_by_category
         GROUP BY period_label
     )
     SELECT
         p.period_label as period,
         ROUND(COALESCE(ts.total_income, 0)::NUMERIC, 2) as income,
         ROUND(COALESCE(ts.total_expenses, 0)::NUMERIC, 2) as expenses,
-        ROUND(COALESCE(ts.net_amount, 0)::NUMERIC, 2) as net
+        ROUND(COALESCE(ts.net_amount, 0)::NUMERIC, 2) as net,
+        COALESCE(ts.categories, '[]'::JSONB) as categories
     FROM periods p
     LEFT JOIN transactions_summary ts ON ts.period_label = p.period_label
     ORDER BY p.period_start

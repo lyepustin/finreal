@@ -33,8 +33,14 @@ export const GET: RequestHandler = async ({ url }) => {
             return json({ error: 'Failed to fetch financial data' }, { status: 500 });
         }
 
+        // Transform the data to ensure categories is always an array
+        const transformedData = data?.map(item => ({
+            ...item,
+            categories: Array.isArray(item.categories) ? item.categories : []
+        })) || [];
+
         return json({
-            chartData: data || []
+            chartData: transformedData
         });
 
     } catch (error) {
