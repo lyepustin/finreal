@@ -79,9 +79,9 @@
     function getCategoryFilterLabel() {
         const count = filters.categories.selected.length;
         if (count === 0) {
-            return '🔍 Filters';
+            return '📂 Type';
         }
-        return `🔍 Filters (${count})`;
+        return `📂 Type (${count})`;
     }
 </script>
 
