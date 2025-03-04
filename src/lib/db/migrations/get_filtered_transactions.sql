@@ -1,0 +1,121 @@
+-- Drop existing function if it exists
+DROP FUNCTION IF EXISTS get_filtered_transactions;
+
+-- Create new function
+CREATE OR REPLACE FUNCTION get_filtered_transactions(
+    date_from DATE DEFAULT NULL,
+    date_to DATE DEFAULT NULL,
+    type_filter TEXT DEFAULT 'all',
+    category_ids INTEGER[] DEFAULT NULL,
+    sort_column TEXT DEFAULT 'operation_date',
+    sort_direction TEXT DEFAULT 'desc',
+    page_number INTEGER DEFAULT 1,
+    page_size INTEGER DEFAULT 30
+)
+RETURNS TABLE (
+    total_count BIGINT,
+    transactions JSONB
+) AS $$
+DECLARE
+    offset_val INTEGER;
+    filtered_results JSONB;
+BEGIN
+    -- Calculate offset
+    offset_val := (page_number - 1) * page_size;
+
+    -- Get filtered transactions
+    WITH filtered_transactions AS (
+        SELECT 
+            t.id,
+            t.uuid,
+            t.operation_date,
+            t.value_date,
+            t.description,
+            t.user_description,
+            t.inserted_at,
+            t.account_id,
+            JSONB_AGG(
+                JSONB_BUILD_OBJECT(
+                    'id', tc.id,
+                    'transaction_id', tc.transaction_id,
+                    'category_id', tc.category_id,
+                    'subcategory_id', tc.subcategory_id,
+                    'amount', tc.amount,
+                    'category', JSONB_BUILD_OBJECT(
+                        'id', c.id,
+                        'name', c.name
+                    ),
+                    'subcategory', CASE 
+                        WHEN s.id IS NOT NULL THEN 
+                            JSONB_BUILD_OBJECT(
+                                'id', s.id,
+                                'name', s.name
+                            )
+                        ELSE NULL 
+                    END
+                )
+            ) as categories,
+            JSONB_BUILD_OBJECT(
+                'id', a.id,
+                'bank_id', a.bank_id,
+                'account_type', a.account_type,
+                'account_number', a.account_number,
+                'bank', JSONB_BUILD_OBJECT(
+                    'id', b.id,
+                    'name', b.name
+                )
+            ) as account,
+            SUM(tc.amount) as total_amount
+        FROM transactions t
+        INNER JOIN transaction_categories tc ON tc.transaction_id = t.id
+        INNER JOIN categories c ON c.id = tc.category_id
+        LEFT JOIN subcategories s ON s.id = tc.subcategory_id
+        INNER JOIN accounts a ON a.id = t.account_id
+        INNER JOIN banks b ON b.id = a.bank_id
+        WHERE 
+            -- Date range filter
+            (date_from IS NULL OR t.operation_date >= date_from) AND
+            (date_to IS NULL OR t.operation_date <= date_to) AND
+            -- Category filter
+            (category_ids IS NULL OR c.id = ANY(category_ids)) AND
+            -- Type filter
+            (
+                type_filter = 'all' OR
+                (type_filter = 'income' AND tc.amount > 0) OR
+                (type_filter = 'expense' AND tc.amount < 0)
+            )
+        GROUP BY t.id, t.uuid, t.operation_date, t.value_date, t.description, t.user_description, t.inserted_at, t.account_id, a.id, a.bank_id, a.account_type, a.account_number, b.id, b.name
+    )
+    SELECT 
+        COUNT(*) OVER()::BIGINT as total_count,
+        JSONB_AGG(
+            JSONB_BUILD_OBJECT(
+                'id', ft.id,
+                'uuid', ft.uuid,
+                'operation_date', ft.operation_date,
+                'value_date', ft.value_date,
+                'description', ft.description,
+                'user_description', ft.user_description,
+                'inserted_at', ft.inserted_at,
+                'account_id', ft.account_id,
+                'categories', ft.categories,
+                'account', ft.account
+            )
+            ORDER BY 
+                CASE 
+                    WHEN sort_column = 'operation_date' AND sort_direction = 'asc' THEN ft.operation_date::TEXT
+                    WHEN sort_column = 'operation_date' AND sort_direction = 'desc' THEN ft.operation_date::TEXT
+                    WHEN sort_column = 'amount' AND sort_direction = 'asc' THEN ft.total_amount::TEXT
+                    WHEN sort_column = 'amount' AND sort_direction = 'desc' THEN ft.total_amount::TEXT
+                    WHEN sort_column = 'description' AND sort_direction = 'asc' THEN COALESCE(ft.user_description, ft.description)
+                    WHEN sort_column = 'description' AND sort_direction = 'desc' THEN COALESCE(ft.user_description, ft.description)
+                    ELSE ft.operation_date::TEXT
+                END
+                || CASE WHEN sort_direction = 'desc' THEN ' DESC' ELSE ' ASC' END
+        ) as transactions
+    INTO total_count, filtered_results
+    FROM filtered_transactions ft;
+
+    RETURN QUERY SELECT total_count, COALESCE(filtered_results, '[]'::JSONB);
+END;
+$$ LANGUAGE plpgsql; 
