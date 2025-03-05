@@ -135,8 +135,6 @@
                 }
             }
             
-            console.log('Fetched chart data:', chartData);
-            
             // Find the rightmost non-empty bar
             selectedBarIndex = findLastNonEmptyBarIndex(chartData);
             selectedBarData = chartData[selectedBarIndex];
@@ -178,9 +176,6 @@
 
     // Update chart when period changes
     function updateChart() {
-        console.log('Updating chart with data:', chartData);
-        console.log('Chart container:', chartContainer);
-        console.log('Canvas:', canvas);
         
         if (!canvas || chartData.length === 0) {
             console.error('Cannot update chart: canvas or chartData is missing');
