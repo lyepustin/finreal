@@ -211,6 +211,13 @@
             window.removeEventListener('click', handleClick);
         };
     });
+
+    // Add effect to update chart when data changes
+    $effect(() => {
+        if (data && canvas) {
+            updateChart();
+        }
+    });
 </script>
 
 <div class="category-pie-chart bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4">
