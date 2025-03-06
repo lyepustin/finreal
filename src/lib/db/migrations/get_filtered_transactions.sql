@@ -7,7 +7,7 @@ CREATE OR REPLACE FUNCTION get_filtered_transactions(
     date_to DATE DEFAULT NULL,
     type_filter TEXT DEFAULT 'all',
     category_ids INTEGER[] DEFAULT NULL,
-    sort_column TEXT DEFAULT 'operation_date',
+    sort_column TEXT DEFAULT 'date',
     sort_direction TEXT DEFAULT 'desc',
     page_number INTEGER DEFAULT 1,
     page_size INTEGER DEFAULT 30
@@ -103,15 +103,30 @@ BEGIN
             )
             ORDER BY 
                 CASE 
-                    WHEN sort_column = 'operation_date' AND sort_direction = 'asc' THEN ft.operation_date::TEXT
-                    WHEN sort_column = 'operation_date' AND sort_direction = 'desc' THEN ft.operation_date::TEXT
-                    WHEN sort_column = 'amount' AND sort_direction = 'asc' THEN ft.total_amount::TEXT
-                    WHEN sort_column = 'amount' AND sort_direction = 'desc' THEN ft.total_amount::TEXT
+                    WHEN sort_column = 'date' AND sort_direction = 'asc' THEN ft.operation_date
+                    ELSE NULL
+                END ASC NULLS LAST,
+                CASE 
+                    WHEN sort_column = 'date' AND sort_direction = 'desc' THEN ft.operation_date
+                    ELSE NULL
+                END DESC NULLS LAST,
+                CASE 
+                    WHEN sort_column = 'amount' AND sort_direction = 'asc' THEN ABS(ft.total_amount)
+                    ELSE NULL
+                END ASC NULLS LAST,
+                CASE 
+                    WHEN sort_column = 'amount' AND sort_direction = 'desc' THEN ABS(ft.total_amount)
+                    ELSE NULL
+                END DESC NULLS LAST,
+                CASE 
                     WHEN sort_column = 'description' AND sort_direction = 'asc' THEN COALESCE(ft.user_description, ft.description)
+                    ELSE NULL
+                END ASC NULLS LAST,
+                CASE 
                     WHEN sort_column = 'description' AND sort_direction = 'desc' THEN COALESCE(ft.user_description, ft.description)
-                    ELSE ft.operation_date::TEXT
-                END
-                || CASE WHEN sort_direction = 'desc' THEN ' DESC' ELSE ' ASC' END
+                    ELSE NULL
+                END DESC NULLS LAST,
+                ft.operation_date DESC -- Default sort
         ) as transactions
     INTO total_count, filtered_results
     FROM filtered_transactions ft;

@@ -10,6 +10,9 @@
     import { DEFAULT_FILTER_STATE } from '$lib/types/filters'
     import { isEqual } from 'lodash'
     import { getDefaultMonthDateRange } from '$lib/utils/dates'
+    import TransactionEditModal from '$lib/components/TransactionEditModal.svelte'
+    import type { Category } from '$lib/types'
+    import * as transactionModel from '$lib/models/transactions'
 
     // Format currency
     function formatEuro(value: number): string {
@@ -65,75 +68,89 @@
             transactionCount: number;
         }>;
     }>>([]);
+    let isEditModalOpen = $state(false);
+    let selectedTransaction = $state<Transaction | null>(null);
+    let categories = $state<Category[]>([]);
+
+    // Add error toast state
+    let toastMessage = $state<{ type: 'success' | 'error', text: string } | null>(null);
+    let toastTimeout: NodeJS.Timeout | null = $state(null);
 
     // Initialize state and load data
     $effect(async () => {
-        if (!browser || isInitialized) return;
+        if (!browser || isInitialized || isUpdating) return;
         
         try {
             isLoading = true;
-            isUpdating = true;
-
-            // Get current URL parameters
-            currentUrl = new URL(window.location.href);
             
-            // Set default date range if no date parameters
-            if (!currentUrl.searchParams.has('dateFrom') && !currentUrl.searchParams.has('dateTo')) {
+            // Get current URL parameters once
+            const url = new URL(window.location.href);
+            
+            // Set default date range if needed (without updating URL)
+            if (!url.searchParams.has('dateFrom') && !url.searchParams.has('dateTo')) {
                 const defaultRange = getDefaultMonthDateRange();
-                currentUrl.searchParams.set('dateFrom', defaultRange.from);
-                currentUrl.searchParams.set('dateTo', defaultRange.to);
-                history.replaceState(null, '', currentUrl);
+                url.searchParams.set('dateFrom', defaultRange.from);
+                url.searchParams.set('dateTo', defaultRange.to);
+                history.replaceState(null, '', url);
             }
             
-            // Update URL parameters
-            urlParams = {
-                dateFrom: currentUrl.searchParams.get('dateFrom'),
-                dateTo: currentUrl.searchParams.get('dateTo'),
-                categoryId: currentUrl.searchParams.get('category'),
-                categoryName: currentUrl.searchParams.get('categoryName'),
-                typeValue: currentUrl.searchParams.get('type') || 'all',
-                sortColumn: currentUrl.searchParams.get('sort.column') || 'date',
-                sortDirection: currentUrl.searchParams.get('sort.direction') || 'desc',
-                page: parseInt(currentUrl.searchParams.get('page') || '1')
+            // Update state based on URL parameters (one time)
+            const params = {
+                dateFrom: url.searchParams.get('dateFrom'),
+                dateTo: url.searchParams.get('dateTo'),
+                categoryId: url.searchParams.get('category'),
+                categoryName: url.searchParams.get('categoryName'),
+                typeValue: url.searchParams.get('type') || 'all',
+                sortColumn: url.searchParams.get('sort.column') || 'date',
+                sortDirection: url.searchParams.get('sort.direction') || 'desc',
+                page: parseInt(url.searchParams.get('page') || '1')
             };
 
-            // Initialize filters with URL parameters
-            filters = {
-                ...DEFAULT_FILTER_STATE,
-                type: { value: urlParams.typeValue as 'all' | 'income' | 'expense' },
-                dateRange: {
-                    from: urlParams.dateFrom || '',
-                    to: urlParams.dateTo || ''
-                },
-                categories: {
-                    selected: urlParams.categoryId ? [urlParams.categoryId] : [],
-                    isNegative: false
-                },
-                sort: {
-                    column: urlParams.sortColumn as any,
-                    direction: urlParams.sortDirection as 'asc' | 'desc'
-                }
-            };
+            // Update local state without triggering effects
+            currentUrl = url;
+            currentPage = params.page;
+            showingCategories = !params.categoryId;
             
-            // Update state based on URL parameters
-            showingCategories = !urlParams.categoryId;
-            currentPage = urlParams.page;
-            
-            if (urlParams.categoryId && urlParams.categoryName) {
+            if (params.categoryId && params.categoryName) {
                 selectedCategory = {
-                    id: parseInt(urlParams.categoryId),
-                    name: urlParams.categoryName
+                    id: parseInt(params.categoryId),
+                    name: params.categoryName
                 };
             }
 
-            // Mark as initialized and load data
+            // Set filters without triggering updates
+            filters = {
+                ...DEFAULT_FILTER_STATE,
+                type: { value: params.typeValue as 'all' | 'income' | 'expense' },
+                dateRange: {
+                    from: params.dateFrom || '',
+                    to: params.dateTo || ''
+                },
+                categories: {
+                    selected: params.categoryId ? [params.categoryId] : [],
+                    isNegative: false
+                },
+                sort: {
+                    column: params.sortColumn as any,
+                    direction: params.sortDirection as 'asc' | 'desc'
+                }
+            };
+
+            // Fetch categories first
+            const categoriesResponse = await fetch('/api/categories');
+            const categoriesResult = await categoriesResponse.json();
+            if (categoriesResult.categories) {
+                categories = categoriesResult.categories;
+            }
+
+            // Mark as initialized before fetching data
             isInitialized = true;
-            isUpdating = false;
+
+            // Initial data fetch
             await Promise.all([
                 showingCategories ? fetchCategoryTotals() : fetchTransactions(),
                 fetchTotals()
             ]);
-
         } catch (error) {
             console.error('Error during initialization:', error);
         } finally {
@@ -232,12 +249,17 @@
     }
 
     function handleSortChange({ detail }: CustomEvent<{ column: TransactionFilterState['sort']['column'] }>) {
-        filters.sort = {
-            column: detail.column,
-            direction: filters.sort.column === detail.column
-                ? filters.sort.direction === 'asc' ? 'desc' : 'asc'
-                : 'desc'
-        };
+        // If clicking the same column, toggle direction
+        if (filters.sort.column === detail.column) {
+            filters.sort.direction = filters.sort.direction === 'asc' ? 'desc' : 'asc';
+        } else {
+            // If clicking a new column, set it with default desc direction
+            filters.sort = {
+                column: detail.column,
+                direction: 'desc'
+            };
+        }
+        currentPage = 1; // Reset to first page when sorting changes
         submitFilters();
     }
 
@@ -271,8 +293,14 @@
     }
 
     function handleTransactionClick(transaction: Transaction) {
-        const currentUrl = window.location.pathname + window.location.search;
-        goto(`/transactions/${transaction.id}?returnUrl=${encodeURIComponent(currentUrl)}`);
+        console.log('Transaction clicked:', transaction);
+        if (!transaction?.id) {
+            console.error('Invalid transaction:', transaction);
+            showToast('error', 'Invalid transaction data');
+            return;
+        }
+        selectedTransaction = transaction;
+        isEditModalOpen = true;
     }
 
     function handleCategoryClick(category: Category) {
@@ -299,6 +327,7 @@
         isUpdating = true;
 
         try {
+            // Create search params without updating URL immediately
             const searchParams = new URLSearchParams();
             
             // Add all filter parameters
@@ -313,18 +342,19 @@
                 searchParams.set('category', selectedCategory.id.toString());
                 searchParams.set('categoryName', selectedCategory.name);
             }
-            
-            // Update URL first
-            const newUrl = `${window.location.pathname}?${searchParams.toString()}`;
-            history.replaceState(null, '', newUrl);
-            currentUrl = new URL(window.location.href);
 
-            // Then fetch data
-            if (showingCategories) {
-                await Promise.all([fetchCategoryTotals(), fetchTotals()]);
-            } else {
-                await Promise.all([fetchTransactions(), fetchTotals()]);
+            // Update URL only if it's different from current URL
+            const newUrl = `${window.location.pathname}?${searchParams.toString()}`;
+            if (window.location.href !== newUrl) {
+                history.pushState(null, '', newUrl); // Changed from replaceState to pushState to maintain history
+                currentUrl = new URL(window.location.href);
             }
+
+            // Fetch data based on current state, not URL
+            await Promise.all([
+                showingCategories ? fetchCategoryTotals() : fetchTransactions(),
+                fetchTotals()
+            ]);
         } catch (error) {
             console.error('Error updating filters:', error);
         } finally {
@@ -352,6 +382,78 @@
         // Default case when no filters are active
         return 'All';
     }
+
+    async function handleTransactionSave({ detail }: CustomEvent<{ description: string; categories: { categoryId: number; subcategoryId: number | null; amount: number }[] }>) {
+        if (!selectedTransaction?.id) {
+            console.error('No transaction selected');
+            showToast('error', 'No transaction selected. Please try again.');
+            return;
+        }
+
+        const transactionId = selectedTransaction.id; // Store ID locally
+        const oldDescription = selectedTransaction.user_description || selectedTransaction.description;
+
+        console.log('Saving transaction:', {
+            id: transactionId,
+            oldDescription,
+            newDescription: detail.description,
+            categories: detail.categories
+        });
+        
+        try {
+            isLoading = true;
+            
+            // Update description if changed
+            if (detail.description !== oldDescription) {
+                console.log('Updating description from', oldDescription, 'to', detail.description);
+                await transactionModel.updateTransactionDescription(transactionId, detail.description);
+            }
+            
+            // Update categories
+            console.log('Updating categories:', detail.categories);
+            await transactionModel.updateTransactionCategories(transactionId, detail.categories);
+            
+            // Refresh data
+            await Promise.all([
+                showingCategories ? fetchCategoryTotals() : fetchTransactions(),
+                fetchTotals()
+            ]);
+
+            // Show success message
+            showToast('success', 'Transaction updated successfully');
+            
+            // Only clear state and close modal after everything is done
+            isEditModalOpen = false;
+            selectedTransaction = null;
+        } catch (error) {
+            console.error('Error updating transaction:', error);
+            showToast('error', 'Failed to update transaction. Please try again.');
+        } finally {
+            isLoading = false;
+        }
+    }
+
+    function handleModalClose() {
+        isEditModalOpen = false;
+        selectedTransaction = null;
+    }
+
+    // Add toast helper function
+    function showToast(type: 'success' | 'error', text: string) {
+        // Clear existing timeout
+        if (toastTimeout) {
+            clearTimeout(toastTimeout);
+        }
+
+        // Show new toast
+        toastMessage = { type, text };
+
+        // Auto hide after 5 seconds
+        toastTimeout = setTimeout(() => {
+            toastMessage = null;
+            toastTimeout = null;
+        }, 5000);
+    }
 </script>
 
 <div class="transactions-container">
@@ -374,7 +476,7 @@
                     {#if !showingCategories}
                         <button 
                             class="stat-card cursor-pointer transition-all duration-200 text-left hover:bg-gray-50 dark:hover:bg-gray-800/50" 
-                            on:click={handleBackToCategories}
+                            onclick={handleBackToCategories}
                         >
                             <span class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-0.5 flex items-center">
                                 <svg class="w-3 h-3 mr-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -387,7 +489,25 @@
                             </span>
                         </button>
                     {:else}
-                        <div class="stat-card opacity-0"></div>
+                        <button 
+                            class="stat-card cursor-pointer transition-all duration-200 text-left hover:bg-gray-50 dark:hover:bg-gray-800/50" 
+                            onclick={() => {
+                                showingCategories = false;
+                                selectedCategory = null;
+                                filters.categories.selected = [];
+                                submitFilters();
+                            }}
+                        >
+                            <span class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-0.5 flex items-center">
+                                <svg class="w-3 h-3 mr-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M3 7h18M3 12h18M3 17h18"/>
+                                </svg>
+                                
+                            </span>
+                            <span class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-0.5 flex items-center ">
+                                All Transactions
+                            </span>
+                        </button>
                     {/if}
                     
                     <!-- Middle Button (Totals) -->
@@ -415,7 +535,7 @@
                     <button 
                         class="stat-card cursor-pointer transition-all duration-200 hover:bg-gray-50 dark:hover:bg-gray-800/50" 
                         class:active={isFilterExpanded}
-                        on:click={() => isFilterExpanded = !isFilterExpanded}
+                        onclick={() => isFilterExpanded = !isFilterExpanded}
                         aria-expanded={isFilterExpanded}
                         aria-controls="filter-section"
                     >
@@ -453,7 +573,7 @@
                 <div class="p-4">
                     <TransactionSortControls 
                         filters={filters}
-                        categories={data.categories}
+                        categories={categories}
                         on:sortChange={handleSortChange}
                         on:typeChange={handleTypeChange}
                         on:categoryChange={handleCategoryChange}
@@ -475,8 +595,8 @@
                         <!-- Category Card -->
                         <div 
                             class="group flex flex-col h-full bg-white border border-gray-200 shadow-sm rounded-xl hover:shadow-md transition dark:bg-slate-900 dark:border-gray-700 dark:shadow-slate-700/[.7] cursor-pointer"
-                            on:click={() => handleCategoryClick({ id: category.category_id, name: category.category_name })}
-                            on:keydown={(e) => e.key === 'Enter' && handleCategoryClick({ id: category.category_id, name: category.category_name })}
+                            onclick={() => handleCategoryClick({ id: category.category_id, name: category.category_name })}
+                            onkeydown={(e) => e.key === 'Enter' && handleCategoryClick({ id: category.category_id, name: category.category_name })}
                             tabindex="0"
                             role="button"
                             aria-label="View transactions for {category.category_name}"
@@ -516,8 +636,8 @@
                             <!-- Transaction Card -->
                             <div 
                                 class="group flex flex-col h-full bg-white border border-gray-200 shadow-sm rounded-xl hover:shadow-md transition dark:bg-slate-900 dark:border-gray-700 dark:shadow-slate-700/[.7]"
-                                on:click={() => handleTransactionClick(transaction)}
-                                on:keydown={(e) => e.key === 'Enter' && handleTransactionClick(transaction)}
+                                onclick={() => handleTransactionClick(transaction)}
+                                onkeydown={(e) => e.key === 'Enter' && handleTransactionClick(transaction)}
                                 tabindex="0"
                                 role="button"
                                 aria-label="View transaction details"
@@ -581,6 +701,43 @@
         </div>
     </div>
 </div>
+
+<TransactionEditModal
+    isOpen={isEditModalOpen}
+    transaction={selectedTransaction}
+    categories={categories}
+    on:close={handleModalClose}
+    on:save={handleTransactionSave}
+/>
+
+<!-- Add toast component at the bottom of the template -->
+{#if toastMessage}
+    <div 
+        class="fixed bottom-20 left-1/2 transform -translate-x-1/2 z-50 animate-fade-up"
+        role="alert"
+    >
+        <div 
+            class="px-4 py-3 rounded-lg shadow-lg text-sm font-medium {
+                toastMessage.type === 'success' 
+                    ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                    : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
+            }"
+        >
+            <div class="flex items-center gap-2">
+                {#if toastMessage.type === 'success'}
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                {:else}
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                {/if}
+                {toastMessage.text}
+            </div>
+        </div>
+    </div>
+{/if}
 
 <style>
     /* Mobile Layout Styles */
@@ -661,16 +818,19 @@
         background-color: rgb(31, 41, 55);
     }
 
-    /* Card styles */
-    .category-card, .transaction-card {
-        background-color: rgb(255, 255, 255);
-        border-radius: 0.75rem;
-        border: 1px solid rgb(229, 231, 235);
-        transition: all 0.2s ease-in-out;
+    /* Add animation for toast */
+    @keyframes fade-up {
+        from {
+            opacity: 0;
+            transform: translate(-50%, 1rem);
+        }
+        to {
+            opacity: 1;
+            transform: translate(-50%, 0);
+        }
     }
 
-    :global(.dark) .category-card, :global(.dark) .transaction-card {
-        background-color: rgb(15, 23, 42);
-        border-color: rgb(51, 65, 85);
+    .animate-fade-up {
+        animation: fade-up 0.2s ease-out;
     }
 </style> 
