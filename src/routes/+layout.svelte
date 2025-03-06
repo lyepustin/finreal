@@ -78,8 +78,8 @@
       <div class="flex flex-col gap-y-4 gap-x-0 mt-5 sm:flex-row sm:items-center sm:justify-end sm:gap-y-0 sm:gap-x-7 sm:mt-0 sm:ps-7">
         <a class="font-medium text-blue-600 sm:py-6 dark:text-blue-500" href="/" onclick={collapseMenu} aria-current="page">Home</a>
         <a class="font-medium text-gray-500 hover:text-gray-400 sm:py-6 dark:text-gray-400 dark:hover:text-gray-500" href="/transactions" onclick={collapseMenu}>Transactions</a>
-        <a class="font-medium text-gray-500 hover:text-gray-400 sm:py-6 dark:text-gray-400 dark:hover:text-gray-500" href="/analytics" onclick={collapseMenu}>Analytics</a>
-		<a class="font-medium text-gray-500 hover:text-gray-400 sm:py-6 dark:text-gray-400 dark:hover:text-gray-500" href="/categories" onclick={collapseMenu}>Categories</a>
+        <a class="font-medium text-gray-500 hover:text-gray-400 sm:py-6 dark:text-gray-400 dark:hover:text-gray-500" href="/manage/categories" onclick={collapseMenu}>Categories</a>
+        <a class="font-medium text-gray-500 hover:text-gray-400 sm:py-6 dark:text-gray-400 dark:hover:text-gray-500" href="/manage/rules" onclick={collapseMenu}>Rules</a>
         
         {#if session}
           <button 
@@ -109,23 +109,23 @@
       </svg>
       <span class="text-xs mt-1">Home</span>
     </a>
-    <a href="/categories" class="flex flex-col items-center px-4 py-2 text-gray-600 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-500">
-      <svg class="w-6 h-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/>
-      </svg>
-      <span class="text-xs mt-1">Categories</span>
-    </a>
     <a href="/transactions" class="flex flex-col items-center px-4 py-2 text-gray-600 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-500">
       <svg class="w-6 h-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
       </svg>
       <span class="text-xs mt-1">Transactions</span>
     </a>
-    <a href="/analytics" class="flex flex-col items-center px-4 py-2 text-gray-600 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-500">
+    <a href="/manage/categories" class="flex flex-col items-center px-4 py-2 text-gray-600 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-500">
       <svg class="w-6 h-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/>
       </svg>
-      <span class="text-xs mt-1">Analytics</span>
+      <span class="text-xs mt-1">Categories</span>
+    </a>
+    <a href="/manage/rules" class="flex flex-col items-center px-4 py-2 text-gray-600 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-500">
+      <svg class="w-6 h-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/>
+      </svg>
+      <span class="text-xs mt-1">Rules</span>
     </a>
     {#if session}
       <button 
@@ -158,7 +158,7 @@
 {/if}
 
 <!-- Main content with bottom padding for mobile -->
-<main class="container mx-auto px-4 py-8 mb-16 sm:mb-8">
+<main class="container mx-auto px-4 py-2 sm:py-8 mb-16 sm:mb-8">
   {@render children()}
 </main>
 

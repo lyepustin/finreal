@@ -44,4 +44,11 @@ export type Account = {
 export type Bank = {
     id: number
     name: string
+}
+
+export type Rule = {
+    id: number
+    pattern: string
+    category_id: number
+    subcategory_id: number
 } 
