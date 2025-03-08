@@ -78,5 +78,55 @@ export const actions: Actions = {
                 error: { message: 'Failed to delete rule' }
             });
         }
+    },
+
+    applyRule: async ({ request }) => {
+        const formData = await request.formData();
+        const ruleId = formData.get('id');
+
+        if (!ruleId) {
+            return fail(400, { error: { message: 'Rule ID is required' } });
+        }
+
+        try {
+            // Call the apply_rule function
+            const { data: rpcResult, error: dbError } = await supabase
+                .rpc('apply_rule', { rule_id: parseInt(ruleId.toString()) });
+
+            if (dbError) throw dbError;
+
+            // Get updated rules list
+            const { data: rules, error: rulesError } = await supabase
+                .from('transaction_rules')
+                .select(`
+                    id,
+                    pattern,
+                    category_id,
+                    subcategory_id,
+                    category:categories(
+                        id, 
+                        name, 
+                        subcategories:subcategories(id, name)
+                    ),
+                    subcategory:subcategories(id, name)
+                `)
+                .order('id');
+
+            if (rulesError) throw rulesError;
+
+            // Extract affected_count directly from the first result
+            const affectedCount = rpcResult?.[0]?.affected_count;
+            console.log('RPC Result:', rpcResult, 'Affected Count:', affectedCount);
+
+            return {
+                rules,
+                affectedCount
+            };
+        } catch (err) {
+            console.error('Error applying rule:', err);
+            return fail(500, {
+                error: { message: 'Failed to apply rule' }
+            });
+        }
     }
 }; 

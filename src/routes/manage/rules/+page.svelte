@@ -18,6 +18,7 @@
     let errorMessage = $state<string | null>(null);
     let deleteConfirmationOpen = $state(false);
     let ruleToDelete = $state<Rule | null>(null);
+    let applyRuleResult = $state<{ pattern: string; count: number } | null>(null);
 
     // Simple test of reactivity
     let testDerived = $derived(() => {
@@ -215,30 +216,6 @@
         ruleToDelete = null;
     }
 
-    function confirmDelete() {
-        if (!ruleToDelete) return;
-        
-        try {
-            isLoading = true;
-            const form = document.createElement('form');
-            form.method = 'POST';
-            form.action = '?/deleteRule';
-            
-            const idInput = document.createElement('input');
-            idInput.type = 'hidden';
-            idInput.name = 'id';
-            idInput.value = ruleToDelete.id.toString();
-            
-            form.appendChild(idInput);
-            document.body.appendChild(form);
-            
-            form.requestSubmit();
-        } catch (error) {
-            isLoading = false;
-            errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred';
-        }
-    }
-
     function handleCategorySelect(event: CustomEvent<{ categoryId: number; subcategoryId: number | null }>) {
         if (!editingRule) return;
         
@@ -417,14 +394,61 @@
                                                 >
                                                     {rule.pattern}
                                                 </button>
-                                                <button
-                                                    type="button"
-                                                    class="p-1 text-red-600 hover:text-red-800 dark:text-red-500 dark:hover:text-red-400 ml-2"
-                                                    onclick={() => handleDelete(rule)}
-                                                    aria-label={`Delete rule ${rule.pattern}`}
-                                                >
-                                                    <svg class="size-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
-                                                </button>
+                                                <div class="flex gap-2 ml-3">
+                                                    <form
+                                                        method="POST"
+                                                        action="?/applyRule"
+                                                        use:enhance={() => {
+                                                            console.log('Starting apply rule...');
+                                                            isLoading = true;
+                                                            errorMessage = null;
+                                                            
+                                                            return async ({ result }) => {
+                                                                console.log('Apply rule result:', result);
+                                                                isLoading = false;
+                                                                
+                                                                if (result.type === 'success') {
+                                                                    console.log('Apply rule success, affected count:', result.data?.affectedCount);
+                                                                    if (result.data?.rules) {
+                                                                        rules = result.data.rules;
+                                                                        // Update the selected subcategory's rules if it exists
+                                                                        if (selectedSubcategory) {
+                                                                            selectedSubcategory = {
+                                                                                ...selectedSubcategory,
+                                                                                rules: rules.filter(rule => rule.subcategory_id === selectedSubcategory.id)
+                                                                            };
+                                                                        }
+                                                                    }
+                                                                    applyRuleResult = {
+                                                                        pattern: rule.pattern,
+                                                                        count: result.data.affectedCount
+                                                                    };
+                                                                } else if (result.type === 'error') {
+                                                                    console.error('Apply rule error:', result.error);
+                                                                    errorMessage = result.error?.message || 'An error occurred while applying the rule';
+                                                                }
+                                                            };
+                                                        }}
+                                                    >
+                                                        <input type="hidden" name="id" value={rule.id} />
+                                                        <button
+                                                            type="submit"
+                                                            class="p-1 text-blue-600 hover:text-blue-800 dark:text-blue-500 dark:hover:text-blue-400"
+                                                            disabled={isLoading}
+                                                            aria-label={`Apply rule ${rule.pattern}`}
+                                                        >
+                                                            <svg class="size-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                                                        </button>
+                                                    </form>
+                                                    <button
+                                                        type="button"
+                                                        class="p-1 text-red-600 hover:text-red-800 dark:text-red-500 dark:hover:text-red-400"
+                                                        onclick={() => handleDelete(rule)}
+                                                        aria-label={`Delete rule ${rule.pattern}`}
+                                                    >
+                                                        <svg class="size-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+                                                    </button>
+                                                </div>
                                             </div>
                                         {/each}
                                     </div>
@@ -600,28 +624,55 @@
                 </p>
             </div>
 
-            <div class="flex flex-col-reverse sm:flex-row justify-end gap-3">
-                <button
-                    type="button"
-                    class="w-full sm:w-auto px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 dark:text-gray-300 dark:bg-slate-800 dark:border-gray-600 dark:hover:bg-slate-700"
-                    onclick={cancelDelete}
-                >
-                    Cancel
-                </button>
-                <button
-                    type="button"
-                    class="w-full sm:w-auto px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 dark:hover:bg-red-500"
-                    onclick={confirmDelete}
-                    disabled={isLoading}
-                >
-                    {#if isLoading}
-                        <div class="animate-spin inline-block size-4 border-[2px] border-current border-t-transparent text-white rounded-full mr-2" role="status" aria-label="loading"></div>
-                        Deleting...
-                    {:else}
-                        Delete Rule
-                    {/if}
-                </button>
-            </div>
+            <form
+                method="POST"
+                action="?/deleteRule"
+                use:enhance={() => {
+                    isLoading = true;
+                    return async ({ result }) => {
+                        isLoading = false;
+                        if (result.type === 'success') {
+                            if (result.data?.rules) {
+                                rules = result.data.rules;
+                                // Update the selected subcategory's rules if it exists
+                                if (selectedSubcategory) {
+                                    selectedSubcategory = {
+                                        ...selectedSubcategory,
+                                        rules: rules.filter(rule => rule.subcategory_id === selectedSubcategory.id)
+                                    };
+                                }
+                            }
+                            cancelDelete();
+                        } else if (result.type === 'error') {
+                            errorMessage = result.error?.message || 'An error occurred while deleting';
+                        }
+                    };
+                }}
+            >
+                <input type="hidden" name="id" value={ruleToDelete.id} />
+
+                <div class="flex flex-col-reverse sm:flex-row justify-end gap-3">
+                    <button
+                        type="button"
+                        class="w-full sm:w-auto px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 dark:text-gray-300 dark:bg-slate-800 dark:border-gray-600 dark:hover:bg-slate-700"
+                        onclick={cancelDelete}
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        type="submit"
+                        class="w-full sm:w-auto px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 dark:hover:bg-red-500"
+                        disabled={isLoading}
+                    >
+                        {#if isLoading}
+                            <div class="animate-spin inline-block size-4 border-[2px] border-current border-t-transparent text-white rounded-full mr-2" role="status" aria-label="loading"></div>
+                            Deleting...
+                        {:else}
+                            Delete Rule
+                        {/if}
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
@@ -741,6 +792,59 @@
                     {/each}
                 </div>
             {/if}
+        </div>
+    </div>
+</div>
+{/if}
+
+<!-- Apply Rule Result Modal -->
+{#if applyRuleResult}
+<div 
+    class="fixed inset-0 z-[70] flex items-center justify-center p-0 sm:p-6 bg-transparent"
+    role="dialog"
+    aria-modal="true"
+>
+    <!-- Backdrop -->
+    <div 
+        class="fixed inset-0 bg-black/50 backdrop-blur-sm" 
+        aria-hidden="true"
+        onclick={() => applyRuleResult = null}
+        onkeydown={(e) => e.key === 'Escape' && (applyRuleResult = null)}
+        role="presentation"
+    ></div>
+
+    <!-- Modal Content -->
+    <div class="relative bg-white dark:bg-slate-900 w-full h-auto sm:h-auto sm:w-[500px] max-h-[calc(100vh-2rem)] flex flex-col overflow-hidden shadow-xl sm:rounded-2xl">
+        <div class="flex-none flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+                Rule Applied
+            </h2>
+            <button
+                type="button"
+                class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                onclick={() => applyRuleResult = null}
+                aria-label="Close result modal"
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+
+        <div class="flex-1 overflow-y-auto p-4 sm:p-6">
+            <p class="text-gray-600 dark:text-gray-300">
+                The rule "<span class="font-medium text-gray-900 dark:text-white">{applyRuleResult.pattern}</span>" has been applied to <span class="font-medium text-gray-900 dark:text-white">{applyRuleResult.count}</span> transaction{applyRuleResult.count === 1 ? '' : 's'}.
+            </p>
+
+            <div class="mt-6 flex justify-end">
+                <button
+                    type="button"
+                    class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 dark:text-gray-300 dark:bg-slate-800 dark:border-gray-600 dark:hover:bg-slate-700"
+                    onclick={() => applyRuleResult = null}
+                >
+                    Close
+                </button>
+            </div>
         </div>
     </div>
 </div>
