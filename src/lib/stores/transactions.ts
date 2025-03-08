@@ -1,30 +1,46 @@
-import { writable } from 'svelte/store'
-import type { Transaction } from '$lib/types'
-import * as TransactionModel from '$lib/models/transactions'
+import { supabase } from '$lib/db/supabase'
 
-function createTransactionsStore() {
-    const { subscribe, set, update } = writable<Transaction[]>([])
+async function updateTransactionDescription(id: number, description: string) {
+    const { error } = await supabase
+        .from('transactions')
+        .update({ user_description: description })
+        .eq('id', id);
 
-    return {
-        subscribe,
-        set,
-        updateTransactionDescription: async (id: number, user_description: string) => {
-            await TransactionModel.updateTransactionDescription(id, user_description)
-            
-            update(transactions => 
-                transactions.map(t => 
-                    t.id === id 
-                        ? { ...t, user_description } 
-                        : t
-                )
-            )
-        },
-        updateTransactionCategories: async (id: number, categories: { categoryId: number; subcategoryId: number | null; amount: number }[]) => {
-            await TransactionModel.updateTransactionCategories(id, categories)
-            // We don't update the store here since we'll be navigating away
-            // and the list will be refreshed when we return
-        }
+    if (error) {
+        console.error('Error updating transaction description:', error);
+        throw new Error('Failed to update transaction description');
     }
 }
 
-export const transactions = createTransactionsStore() 
+async function updateTransactionCategories(id: number, categories: { categoryId: number; subcategoryId: number | null; amount: number }[]) {
+    // Start a transaction
+    const { error: deleteError } = await supabase
+        .from('transaction_categories')
+        .delete()
+        .eq('transaction_id', id);
+
+    if (deleteError) {
+        console.error('Error deleting old categories:', deleteError);
+        throw new Error('Failed to update transaction categories');
+    }
+
+    // Insert new categories
+    const { error: insertError } = await supabase
+        .from('transaction_categories')
+        .insert(categories.map(cat => ({
+            transaction_id: id,
+            category_id: cat.categoryId,
+            subcategory_id: cat.subcategoryId,
+            amount: cat.amount
+        })));
+
+    if (insertError) {
+        console.error('Error inserting new categories:', insertError);
+        throw new Error('Failed to update transaction categories');
+    }
+}
+
+export const transactions = {
+    updateTransactionDescription,
+    updateTransactionCategories
+}; 

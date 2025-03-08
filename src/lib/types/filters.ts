@@ -1,7 +1,9 @@
-export interface TransactionFilterState {
-    type: { value: 'all' | 'income' | 'expense' };
-    dateRange: { 
-        from: string; 
+export type TransactionFilterState = {
+    type: {
+        value: 'all' | 'income' | 'expense'
+    };
+    dateRange: {
+        from: string;
         to: string;
     };
     categories: {
@@ -22,6 +24,7 @@ export interface TransactionFilterState {
     period?: {
         value: 'month' | 'week';
     };
+    searchTerm: string;
 }
 
 // Define AnalyticsFilterState to match TransactionFilterState structure
@@ -48,9 +51,11 @@ export interface AnalyticsFilterState {
 }
 
 export const DEFAULT_FILTER_STATE: TransactionFilterState = {
-    type: { value: 'all' },
-    dateRange: { 
-        from: '', 
+    type: {
+        value: 'all'
+    },
+    dateRange: {
+        from: '',
         to: ''
     },
     categories: {
@@ -67,7 +72,8 @@ export const DEFAULT_FILTER_STATE: TransactionFilterState = {
     sort: {
         column: 'date',
         direction: 'desc'
-    }
+    },
+    searchTerm: ''
 }; 
 
 export const DEFAULT_ANALYTICS_FILTER_STATE: AnalyticsFilterState = {

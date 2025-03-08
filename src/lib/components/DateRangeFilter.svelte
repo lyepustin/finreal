@@ -10,6 +10,7 @@
     import { DateFormatter, type DateValue, getLocalTimeZone, today, parseDate } from "@internationalized/date";
     import { cn } from '$lib/utils';
     import { getDefaultMonthDateRange } from '$lib/utils/dates';
+    import { isEqual } from 'lodash';
 
     const dispatch = createEventDispatcher<{
         change: DateRangeFilter;
@@ -37,101 +38,39 @@
     let fromDate = $state<DateValue | undefined>(undefined);
     let toDate = $state<DateValue | undefined>(undefined);
     let currentPeriodStart = $state<DateValue>(today(getLocalTimeZone()));
-    let isInitialized = $state(false);
-    let previousDateRange = $state<DateRangeFilter>({ from: '', to: '' });
 
-    // Initialize dates from props
+    // Effect to handle date range changes
     $effect(() => {
-        if (isInitialized && 
-            dateRange.from === previousDateRange.from && 
-            dateRange.to === previousDateRange.to) {
-            return;
-        }
-        
-        try {
-            // Store current dateRange for comparison
-            previousDateRange = { ...dateRange };
-            
-            // Try to parse dates from props
-            if (dateRange.from) {
-                fromDate = parseDate(dateRange.from);
-                currentPeriodStart = fromDate;
-            }
-            
-            if (dateRange.to) {
-                toDate = parseDate(dateRange.to);
-            }
-            
-            // If either date is missing, set default values
-            if (!fromDate || !toDate) {
-                initializeDefaultDates();
-            }
-            
-            isInitialized = true;
-        } catch (error) {
-            console.error("Error parsing dates:", error);
-            initializeDefaultDates();
-            isInitialized = true;
-        }
-    });
-
-    // Initialize currentPeriodStart based on fromDate
-    $effect(() => {
-        if (fromDate) {
+        if (dateRange.from && dateRange.to && (!fromDate || !toDate)) {
+            fromDate = parseDate(dateRange.from);
+            toDate = parseDate(dateRange.to);
             currentPeriodStart = fromDate;
         }
     });
 
-    // Watch for date changes
-    $effect(() => {
-        if (!isInitialized) return;
-        
-        const checkDates = () => {
-            if (fromDate !== undefined || toDate !== undefined) {
-                onDateChange();
+    // Function to check and update dates
+    function checkDates() {
+        if (fromDate && toDate) {
+            const newDateRange = {
+                from: fromDate.toString().split('T')[0],
+                to: toDate.toString().split('T')[0]
+            };
+            
+            if (!isEqual(newDateRange, dateRange)) {
+                dispatch('change', newDateRange);
             }
-        };
-        checkDates();
-    });
-
-    function initializeDefaultDates() {
-        // Get default date range using the utility function
-        const defaultRange = getDefaultMonthDateRange();
-        
-        // Parse the dates
-        fromDate = parseDate(defaultRange.from);
-        toDate = parseDate(defaultRange.to);
-        
-        currentPeriodStart = fromDate;
-    }
-
-    function onDateChange() {
-        if (!fromDate || !toDate) return;
-        
-        const newDateRange = {
-            from: fromDate.toString().split('T')[0],
-            to: toDate.toString().split('T')[0]
-        };
-        
-        if (newDateRange.from !== dateRange.from || newDateRange.to !== dateRange.to) {
-            dispatch('change', newDateRange);
-            dateRange = newDateRange;
-            previousDateRange = { ...newDateRange };
         }
     }
 
-    // Set initial date range if not set
+    // Watch for date changes
     $effect(() => {
-        if (!isInitialized) return;
-        
-        if (!fromDate || !toDate) {
-            initializeDefaultDates();
+        if (fromDate && toDate) {
+            checkDates();
         }
     });
 
     function setPreviousMonth() {
         const newStart = currentPeriodStart.subtract({ months: 1 });
-        // Set to first day of the month
         const monthStr = newStart.toString().split('-')[1];
         const yearStr = newStart.toString().split('-')[0];
         const monthStart = parseDate(`${yearStr}-${monthStr}-01`);
@@ -143,42 +82,17 @@
 
     function setPreviousYear() {
         const newStart = currentPeriodStart.subtract({ years: 1 });
-        // Set to January 1st of the selected year
         const yearStr = newStart.toString().split('-')[0];
         const yearStart = parseDate(`${yearStr}-01-01`);
-        // Set to December 31st of the selected year
         const yearEnd = parseDate(`${yearStr}-12-31`);
         fromDate = yearStart;
         toDate = yearEnd;
         currentPeriodStart = yearStart;
     }
 
-    function getLastDayOfMonth(date: DateValue) {
-        // Get the year and month
-        const parts = date.toString().split('-');
-        const year = parseInt(parts[0]);
-        const month = parseInt(parts[1]);
-        
-        // Create a date for the first day of the next month
-        // Then subtract one day to get the last day of the current month
-        const nextMonth = month === 12 ? 1 : month + 1;
-        const nextMonthYear = month === 12 ? year + 1 : year;
-        
-        // Format with leading zeros
-        const nextMonthStr = nextMonth.toString().padStart(2, '0');
-        const nextMonthYearStr = nextMonthYear.toString();
-        
-        // Create the first day of next month
-        const firstDayNextMonth = parseDate(`${nextMonthYearStr}-${nextMonthStr}-01`);
-        
-        // Subtract one day to get the last day of the current month
-        return firstDayNextMonth.subtract({ days: 1 });
-    }
-
     function setNextMonth() {
         if (isCurrentOrFutureMonth(currentPeriodStart)) return;
         const newStart = currentPeriodStart.add({ months: 1 });
-        // Set to first day of the month
         const monthStr = newStart.toString().split('-')[1];
         const yearStr = newStart.toString().split('-')[0];
         const monthStart = parseDate(`${yearStr}-${monthStr}-01`);
@@ -191,14 +105,23 @@
     function setNextYear() {
         if (isCurrentOrFutureYear(currentPeriodStart)) return;
         const newStart = currentPeriodStart.add({ years: 1 });
-        // Set to January 1st of the selected year
         const yearStr = newStart.toString().split('-')[0];
         const yearStart = parseDate(`${yearStr}-01-01`);
-        // Set to December 31st of the selected year
         const yearEnd = parseDate(`${yearStr}-12-31`);
         fromDate = yearStart;
         toDate = yearEnd;
         currentPeriodStart = yearStart;
+    }
+
+    function getLastDayOfMonth(date: DateValue) {
+        const parts = date.toString().split('-');
+        const year = parseInt(parts[0]);
+        const month = parseInt(parts[1]);
+        const nextMonth = month === 12 ? 1 : month + 1;
+        const nextMonthYear = month === 12 ? year + 1 : year;
+        const nextMonthStr = nextMonth.toString().padStart(2, '0');
+        const firstDayNextMonth = parseDate(`${nextMonthYear}-${nextMonthStr}-01`);
+        return firstDayNextMonth.subtract({ days: 1 });
     }
 
     function isCurrentOrFutureMonth(date: DateValue) {
