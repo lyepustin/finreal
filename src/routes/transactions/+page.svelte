@@ -103,6 +103,7 @@
                 typeValue: url.searchParams.get('type') || 'all',
                 sortColumn: url.searchParams.get('sort.column') || 'date',
                 sortDirection: url.searchParams.get('sort.direction') || 'desc',
+                searchTerm: url.searchParams.get('searchTerm') || '',
                 page: parseInt(url.searchParams.get('page') || '1')
             };
 
@@ -133,7 +134,8 @@
                 sort: {
                     column: params.sortColumn as any,
                     direction: params.sortDirection as 'asc' | 'desc'
-                }
+                },
+                searchTerm: params.searchTerm
             };
 
             // Fetch categories first
@@ -170,6 +172,10 @@
         searchParams.set('sort.direction', filters.sort.direction);
         searchParams.set('type', filters.type.value);
         searchParams.set('page', currentPage.toString());
+        
+        if (filters.searchTerm) {
+            searchParams.set('searchTerm', filters.searchTerm);
+        }
         
         if (selectedCategory) {
             searchParams.set('category', selectedCategory.id.toString());
@@ -321,6 +327,15 @@
         submitFilters();
     }
 
+    async function handleSearchChange({ detail }: CustomEvent<{ searchTerm: string }>) {
+        filters = {
+            ...filters,
+            searchTerm: detail.searchTerm
+        };
+        currentPage = 1;
+        submitFilters();
+    }
+
     async function submitFilters() {
         if (!browser || isUpdating) return;
         isLoading = true;
@@ -338,6 +353,10 @@
             searchParams.set('type', filters.type.value);
             searchParams.set('page', currentPage.toString());
             
+            if (filters.searchTerm) {
+                searchParams.set('searchTerm', filters.searchTerm);
+            }
+            
             if (selectedCategory) {
                 searchParams.set('category', selectedCategory.id.toString());
                 searchParams.set('categoryName', selectedCategory.name);
@@ -346,7 +365,7 @@
             // Update URL only if it's different from current URL
             const newUrl = `${window.location.pathname}?${searchParams.toString()}`;
             if (window.location.href !== newUrl) {
-                history.pushState(null, '', newUrl); // Changed from replaceState to pushState to maintain history
+                history.pushState(null, '', newUrl);
                 currentUrl = new URL(window.location.href);
             }
 
@@ -371,6 +390,11 @@
         
         // Add type filter to count if it's not 'all'
         if (typeValue !== 'all') {
+            totalFilters += 1;
+        }
+        
+        // Add search filter to count if it exists
+        if (filters.searchTerm) {
             totalFilters += 1;
         }
         
@@ -577,6 +601,7 @@
                         on:sortChange={handleSortChange}
                         on:typeChange={handleTypeChange}
                         on:categoryChange={handleCategoryChange}
+                        on:searchChange={handleSearchChange}
                     />
                 </div>
             </div>
@@ -668,10 +693,13 @@
                                     <div class="mt-auto">
                                         <div class="flex flex-wrap gap-1 mt-2">
                                             {#each transaction.categories as tc}
-                                                <span class="inline-flex items-center gap-x-1.5 py-1 px-2 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                                                <span class="inline-flex items-center gap-x-1.5 py-1 px-2 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200">
                                                     {tc.category.name}
                                                     {#if tc.subcategory}
-                                                        - {tc.subcategory.name}
+                                                        - {tc.subcategory.name} 
+                                                        <span class="text-xs font-semibold {tc.amount < 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}">
+                                                            {formatEuro(tc.amount)}
+                                                        </span>
                                                     {/if}
                                                 </span>
                                             {/each}

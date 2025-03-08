@@ -1,6 +1,7 @@
 <script>
 	import { invalidate } from '$app/navigation'
 	import { onMount } from 'svelte'
+	import { page } from '$app/stores'
 	import '../app.css'; // Make sure Tailwind CSS is imported
 	import SignOutPopup from '$lib/components/SignOutPopup.svelte';
 	import { signOut } from '$lib/utils/auth';
@@ -45,6 +46,11 @@
 	    }
 	  }
 	}
+
+	// Function to check if a path is active
+	function isActive(path) {
+		return $page.url.pathname === path;
+	}
   
 	onMount(() => {
 	  const { data } = supabase.auth.onAuthStateChange((_, newSession) => {
@@ -62,6 +68,14 @@
 	})
 </script>
 
+<svelte:head>
+  <title>ꜰɪɴʀᴇᴀʟ</title>
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="manifest" href="/site.webmanifest">
+</svelte:head>
+
 <!-- Header with mobile-friendly navigation -->
 <header class="hidden sm:flex flex-wrap sm:justify-start sm:flex-nowrap z-50 w-full bg-white border-b border-gray-200 text-sm py-3 sm:py-0 dark:bg-gray-800 dark:border-gray-700">
   <nav class="relative max-w-[85rem] w-full mx-auto px-4 sm:flex sm:items-center sm:justify-between sm:px-6 lg:px-8" aria-label="Global">
@@ -76,10 +90,10 @@
     </div>
     <div id="navbar-collapse-with-animation" class="hs-collapse hidden overflow-hidden transition-all duration-300 basis-full grow sm:block">
       <div class="flex flex-col gap-y-4 gap-x-0 mt-5 sm:flex-row sm:items-center sm:justify-end sm:gap-y-0 sm:gap-x-7 sm:mt-0 sm:ps-7">
-        <a class="font-medium text-blue-600 sm:py-6 dark:text-blue-500" href="/" onclick={collapseMenu} aria-current="page">Home</a>
-        <a class="font-medium text-gray-500 hover:text-gray-400 sm:py-6 dark:text-gray-400 dark:hover:text-gray-500" href="/transactions" onclick={collapseMenu}>Transactions</a>
-        <a class="font-medium text-gray-500 hover:text-gray-400 sm:py-6 dark:text-gray-400 dark:hover:text-gray-500" href="/manage/categories" onclick={collapseMenu}>Categories</a>
-        <a class="font-medium text-gray-500 hover:text-gray-400 sm:py-6 dark:text-gray-400 dark:hover:text-gray-500" href="/manage/rules" onclick={collapseMenu}>Rules</a>
+        <a class="font-medium {isActive('/') ? 'text-blue-600 dark:text-blue-500' : 'text-gray-500 hover:text-gray-400 dark:text-gray-400 dark:hover:text-gray-500'} sm:py-6" href="/" onclick={collapseMenu} aria-current={isActive('/') ? 'page' : undefined}>Home</a>
+        <a class="font-medium {isActive('/transactions') ? 'text-blue-600 dark:text-blue-500' : 'text-gray-500 hover:text-gray-400 dark:text-gray-400 dark:hover:text-gray-500'} sm:py-6" href="/transactions" onclick={collapseMenu} aria-current={isActive('/transactions') ? 'page' : undefined}>Transactions</a>
+        <a class="font-medium {isActive('/manage/categories') ? 'text-blue-600 dark:text-blue-500' : 'text-gray-500 hover:text-gray-400 dark:text-gray-400 dark:hover:text-gray-500'} sm:py-6" href="/manage/categories" onclick={collapseMenu} aria-current={isActive('/manage/categories') ? 'page' : undefined}>Categories</a>
+        <a class="font-medium {isActive('/manage/rules') ? 'text-blue-600 dark:text-blue-500' : 'text-gray-500 hover:text-gray-400 dark:text-gray-400 dark:hover:text-gray-500'} sm:py-6" href="/manage/rules" onclick={collapseMenu} aria-current={isActive('/manage/rules') ? 'page' : undefined}>Rules</a>
         
         {#if session}
           <button 

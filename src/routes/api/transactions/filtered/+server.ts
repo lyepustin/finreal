@@ -14,11 +14,24 @@ export const GET: RequestHandler = async ({ url }) => {
             const sortDirection = url.searchParams.get('sort.direction') || 'desc';
             const page = parseInt(url.searchParams.get('page') || '1');
             const pageSize = parseInt(url.searchParams.get('pageSize') || '30');
+            const searchTerm = url.searchParams.get('searchTerm') || '';
             
             // Get category IDs if present
             const categoryIds = url.searchParams.getAll('categories.selected[]').map(id => parseInt(id));
 
-            // Query the database using the new function
+            console.log('Search params:', {
+                dateFrom,
+                dateTo,
+                typeValue,
+                sortColumn,
+                sortDirection,
+                page,
+                pageSize,
+                searchTerm,
+                categoryIds
+            });
+
+            // Query the database using the RPC function
             const { data, error } = await supabase.rpc('get_filtered_transactions', {
                 date_from: dateFrom || null,
                 date_to: dateTo || null,
@@ -27,7 +40,8 @@ export const GET: RequestHandler = async ({ url }) => {
                 sort_column: sortColumn,
                 sort_direction: sortDirection,
                 page_number: page,
-                page_size: pageSize
+                page_size: pageSize,
+                search_term: searchTerm || null
             });
 
             if (error) {
@@ -51,7 +65,7 @@ export const GET: RequestHandler = async ({ url }) => {
             console.error('Error in get_filtered_transactions:', error);
             return json({
                 success: false,
-                error: 'Failed to fetch transactions'
+                error: error instanceof Error ? error.message : 'Failed to fetch transactions'
             }, { status: 500 });
         }
     });

@@ -10,7 +10,8 @@ CREATE OR REPLACE FUNCTION get_filtered_transactions(
     sort_column TEXT DEFAULT 'date',
     sort_direction TEXT DEFAULT 'desc',
     page_number INTEGER DEFAULT 1,
-    page_size INTEGER DEFAULT 30
+    page_size INTEGER DEFAULT 30,
+    search_term TEXT DEFAULT NULL
 )
 RETURNS TABLE (
     total_count BIGINT,
@@ -20,6 +21,10 @@ DECLARE
     offset_val INTEGER;
     filtered_results JSONB;
 BEGIN
+    -- Log input parameters
+    RAISE NOTICE 'Search parameters: date_from=%, date_to=%, type_filter=%, search_term=%', 
+        date_from, date_to, type_filter, search_term;
+
     -- Calculate offset
     offset_val := (page_number - 1) * page_size;
 
@@ -83,6 +88,12 @@ BEGIN
                 type_filter = 'all' OR
                 (type_filter = 'income' AND tc.amount > 0) OR
                 (type_filter = 'expense' AND tc.amount < 0)
+            ) AND
+            -- Search filter
+            (
+                search_term IS NULL OR
+                LOWER(t.description) ILIKE LOWER('%' || search_term || '%') OR
+                LOWER(COALESCE(t.user_description, '')) ILIKE LOWER('%' || search_term || '%')
             )
         GROUP BY t.id, t.uuid, t.operation_date, t.value_date, t.description, t.user_description, t.inserted_at, t.account_id, a.id, a.bank_id, a.account_type, a.account_number, b.id, b.name
     )
@@ -129,7 +140,12 @@ BEGIN
                 ft.operation_date DESC -- Default sort
         ) as transactions
     INTO total_count, filtered_results
-    FROM filtered_transactions ft;
+    FROM filtered_transactions ft
+    LIMIT page_size
+    OFFSET offset_val;
+
+    -- Log results
+    RAISE NOTICE 'Found % total records', total_count;
 
     RETURN QUERY SELECT total_count, COALESCE(filtered_results, '[]'::JSONB);
 END;

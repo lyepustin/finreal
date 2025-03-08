@@ -3,6 +3,7 @@
     import type { Category } from '$lib/types';
     import { createEventDispatcher } from 'svelte';
     import CategoryFilterModal from './CategoryFilterModal.svelte';
+    import SearchModal from './SearchModal.svelte';
 
     const { filters, categories } = $props<{ 
         filters: TransactionFilterState,
@@ -10,11 +11,13 @@
     }>();
 
     let isCategoryModalOpen = $state(false);
+    let isSearchModalOpen = $state(false);
 
     const dispatch = createEventDispatcher<{
         sortChange: { column: TransactionFilterState['sort']['column'] };
         typeChange: { type: 'all' | 'income' | 'expense' };
         categoryChange: { selected: string[], isNegative: boolean };
+        searchChange: { searchTerm: string };
     }>();
 
     function handleSort(column: TransactionFilterState['sort']['column']) {
@@ -44,7 +47,7 @@
             case 'expense':
                 return '😭 Expense';
             default:
-                return '💰 All';
+                return '💰 Mixed';
         }
     }
 
@@ -79,9 +82,31 @@
     function getCategoryFilterLabel() {
         const count = filters.categories.selected.length;
         if (count === 0) {
-            return '📂 Type';
+            return '📂 Categories';
         }
-        return `📂 Type (${count})`;
+        return `📂 Categories (${count})`;
+    }
+
+    function openSearchModal() {
+        isSearchModalOpen = true;
+    }
+
+    function handleSearchModalClose() {
+        isSearchModalOpen = false;
+    }
+
+    function handleSearchChange(event: CustomEvent<{ searchTerm: string }>) {
+        dispatch('searchChange', {
+            searchTerm: event.detail.searchTerm
+        });
+        isSearchModalOpen = false;
+    }
+
+    function getSearchLabel() {
+        if (filters.searchTerm) {
+            return `🔍 "${filters.searchTerm}"`;
+        }
+        return '🔍 Search';
     }
 </script>
 
@@ -114,6 +139,18 @@
             class:dark:text-purple-400={filters.categories.selected.length > 0}
         >
             {getCategoryFilterLabel()}
+        </button>
+        <button 
+            type="button"
+            onclick={openSearchModal}
+            class="flex-1 p-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors duration-200 text-xs font-medium text-center"
+            class:bg-yellow-50={filters.searchTerm}
+            class:text-yellow-700={filters.searchTerm}
+            class:dark:bg-yellow-900={filters.searchTerm}
+            class:dark:bg-opacity-20={filters.searchTerm}
+            class:dark:text-yellow-400={filters.searchTerm}
+        >
+            {getSearchLabel()}
         </button>
         <button 
             type="button"
@@ -157,4 +194,11 @@
     isNegative={filters.categories.isNegative}
     on:close={handleCategoryModalClose}
     on:apply={handleCategoryChange}
+/>
+
+<SearchModal
+    isOpen={isSearchModalOpen}
+    searchTerm={filters.searchTerm}
+    on:close={handleSearchModalClose}
+    on:apply={handleSearchChange}
 /> 
