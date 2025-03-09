@@ -310,6 +310,13 @@
     }
 
     function handleCategoryClick(category: Category) {
+        // Clear transactions immediately to prevent flash of old data
+        data = {
+            ...data,
+            transactions: [],
+            totalCount: 0,
+            totalPages: 0
+        };
         showingCategories = false;
         selectedCategory = {
             id: category.id,
@@ -321,6 +328,13 @@
     }
 
     function handleBackToCategories() {
+        // Clear transactions immediately to prevent flash of old data
+        data = {
+            ...data,
+            transactions: [],
+            totalCount: 0,
+            totalPages: 0
+        };
         showingCategories = true;
         selectedCategory = null;
         filters.categories.selected = [];
@@ -537,20 +551,26 @@
                     <!-- Middle Button (Totals) -->
                     <div class="stat-card bg-white dark:bg-slate-900 flex-col justify-center min-h-[52px]">
                         <div class="flex flex-col items-center gap-0.5">
-                            {#if totals.totalIncome > Math.abs(totals.totalExpenses)}
-                                <span class="text-xl font-semibold text-green-600 dark:text-green-400 leading-none">
-                                    {formatEuro(totals.totalIncome)}
-                                </span>
-                                <span class="text-lg font-semibold text-red-600 dark:text-red-400 leading-none">
-                                    {formatEuro(totals.totalExpenses)}
-                                </span>
+                            {#if isLoading}
+                                <!-- Loading skeleton for totals -->
+                                <div class="flex flex-col items-center gap-1 w-full">
+                                </div>
                             {:else}
-                                <span class="text-xl font-semibold text-red-600 dark:text-red-400 leading-none">
-                                    {formatEuro(totals.totalExpenses)}
-                                </span>
-                                <span class="text-lg font-semibold text-green-600 dark:text-green-400 leading-none">
-                                    {formatEuro(totals.totalIncome)}
-                                </span>
+                                {#if totals.totalIncome > Math.abs(totals.totalExpenses)}
+                                    <span class="text-xl font-semibold text-green-600 dark:text-green-400 leading-none">
+                                        {formatEuro(totals.totalIncome)}
+                                    </span>
+                                    <span class="text-lg font-semibold text-red-600 dark:text-red-400 leading-none">
+                                        {formatEuro(totals.totalExpenses)}
+                                    </span>
+                                {:else}
+                                    <span class="text-xl font-semibold text-red-600 dark:text-red-400 leading-none">
+                                        {formatEuro(totals.totalExpenses)}
+                                    </span>
+                                    <span class="text-lg font-semibold text-green-600 dark:text-green-400 leading-none">
+                                        {formatEuro(totals.totalIncome)}
+                                    </span>
+                                {/if}
                             {/if}
                         </div>
                     </div>
@@ -655,59 +675,172 @@
                 </div>
             {:else}
                 <!-- Transaction List -->
-                {#if data.transactions?.length}
+                {#if !showingCategories}
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-4">
-                        {#each data.transactions as transaction}
-                            <!-- Transaction Card -->
-                            <div 
-                                class="group flex flex-col h-full bg-white border border-gray-200 shadow-sm rounded-xl hover:shadow-md transition dark:bg-slate-900 dark:border-gray-700 dark:shadow-slate-700/[.7]"
-                                onclick={() => handleTransactionClick(transaction)}
-                                onkeydown={(e) => e.key === 'Enter' && handleTransactionClick(transaction)}
-                                tabindex="0"
-                                role="button"
-                                aria-label="View transaction details"
-                            >
-                                <div class="p-4">
-                                    <!-- Date and Amount -->
-                                    <div class="flex justify-between items-center mb-3">
-                                        <span class="text-xs font-medium text-gray-500 dark:text-gray-400">
-                                            {new Date(transaction.operation_date).toLocaleDateString()}
-                                        </span>
-                                        {#if transaction.categories.reduce((sum, tc) => sum + tc.amount, 0) < 0}
-                                            <span class="text-base font-semibold text-red-600 dark:text-red-400">
-                                                {formatEuro(transaction.categories.reduce((sum, tc) => sum + tc.amount, 0))}
-                                            </span>
-                                        {:else}
-                                            <span class="text-base font-semibold text-green-600 dark:text-green-400">
-                                                {formatEuro(transaction.categories.reduce((sum, tc) => sum + tc.amount, 0))}
-                                            </span>
-                                        {/if}
-                                    </div>
-                                    
-                                    <!-- Description -->
-                                    <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-300 line-clamp-2 mb-2">
-                                        {transaction.user_description || transaction.description}
-                                    </h3>
-                                    
-                                    <!-- Categories -->
-                                    <div class="mt-auto">
+                        {#if isLoading}
+                            {#each Array(6) as _, i}
+                                <div class="group flex flex-col h-full bg-white border border-gray-200 shadow-sm rounded-xl dark:bg-slate-900 dark:border-gray-700">
+                                    <div class="p-4">
+                                        <!-- Date and Amount Skeleton -->
+                                        <div class="flex justify-between items-center mb-3">
+                                            <div class="h-4 w-24 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+                                            <div class="h-4 w-20 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+                                        </div>
+                                        
+                                        <!-- Description Skeleton -->
+                                        <div class="h-6 w-3/4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-2"></div>
+                                        
+                                        <!-- Categories Skeleton -->
                                         <div class="flex flex-wrap gap-1 mt-2">
-                                            {#each transaction.categories as tc}
-                                                <span class="inline-flex items-center gap-x-1.5 py-1 px-2 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200">
-                                                    {tc.category.name}
-                                                    {#if tc.subcategory}
-                                                        - {tc.subcategory.name} 
-                                                        <span class="text-xs font-semibold {tc.amount < 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}">
-                                                            {formatEuro(tc.amount)}
-                                                        </span>
-                                                    {/if}
-                                                </span>
-                                            {/each}
+                                            <div class="h-6 w-20 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+                                            <div class="h-6 w-24 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
                                         </div>
                                     </div>
                                 </div>
+                            {/each}
+                        {:else if data.transactions?.length}
+                            {#each data.transactions as transaction}
+                                <!-- Transaction Card -->
+                                <div 
+                                    class="group flex flex-col h-full bg-white border border-gray-200 shadow-sm rounded-xl hover:shadow-md transition dark:bg-slate-900 dark:border-gray-700 dark:shadow-slate-700/[.7]"
+                                    onclick={() => handleTransactionClick(transaction)}
+                                    onkeydown={(e) => e.key === 'Enter' && handleTransactionClick(transaction)}
+                                    tabindex="0"
+                                    role="button"
+                                    aria-label="View transaction details"
+                                >
+                                    <div class="p-4">
+                                        <!-- Date and Amount -->
+                                        <div class="flex justify-between items-center mb-3">
+                                            <span class="text-xs font-medium text-gray-500 dark:text-gray-400">
+                                                {new Date(transaction.operation_date).toLocaleDateString()}
+                                            </span>
+                                            {#if transaction.categories.reduce((sum, tc) => sum + tc.amount, 0) < 0}
+                                                <span class="text-base font-semibold text-red-600 dark:text-red-400">
+                                                    {formatEuro(transaction.categories.reduce((sum, tc) => sum + tc.amount, 0))}
+                                                </span>
+                                            {:else}
+                                                <span class="text-base font-semibold text-green-600 dark:text-green-400">
+                                                    {formatEuro(transaction.categories.reduce((sum, tc) => sum + tc.amount, 0))}
+                                                </span>
+                                            {/if}
+                                        </div>
+                                        
+                                        <!-- Description -->
+                                        <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-300 line-clamp-2 mb-2">
+                                            {transaction.user_description || transaction.description}
+                                        </h3>
+                                        
+                                        <!-- Categories -->
+                                        <div class="mt-auto">
+                                            <div class="flex flex-wrap gap-1 mt-2">
+                                                {#each transaction.categories as tc}
+                                                    <span class="inline-flex items-center gap-x-1.5 py-1 px-2 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200">
+                                                        {tc.category.name}
+                                                        {#if tc.subcategory}
+                                                            - {tc.subcategory.name} 
+                                                            <span class="text-xs font-semibold {tc.amount < 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}">
+                                                                {formatEuro(tc.amount)}
+                                                            </span>
+                                                        {/if}
+                                                    </span>
+                                                {/each}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            {/each}
+                        {:else}
+                            <div class="flex flex-col items-center justify-center p-8 text-center">
+                                <svg class="size-16 text-gray-300 dark:text-gray-600 mb-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg>
+                                <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-200">🙃 No transactions found 🙃</h3>
+                                <p class="text-gray-500 mt-1">Try adjusting your filters</p>
                             </div>
-                        {/each}
+                        {/if}
+                    </div>
+                {:else}
+                    <!-- Transaction List -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-4">
+                        {#if isLoading}
+                            {#each Array(6) as _, i}
+                                <div class="group flex flex-col h-full bg-white border border-gray-200 shadow-sm rounded-xl dark:bg-slate-900 dark:border-gray-700">
+                                    <div class="p-4">
+                                        <!-- Date and Amount Skeleton -->
+                                        <div class="flex justify-between items-center mb-3">
+                                            <div class="h-4 w-24 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+                                            <div class="h-4 w-20 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+                                        </div>
+                                        
+                                        <!-- Description Skeleton -->
+                                        <div class="h-6 w-3/4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-2"></div>
+                                        
+                                        <!-- Categories Skeleton -->
+                                        <div class="flex flex-wrap gap-1 mt-2">
+                                            <div class="h-6 w-20 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+                                            <div class="h-6 w-24 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            {/each}
+                        {:else if data.transactions?.length}
+                            {#each data.transactions as transaction}
+                                <!-- Transaction Card -->
+                                <div 
+                                    class="group flex flex-col h-full bg-white border border-gray-200 shadow-sm rounded-xl hover:shadow-md transition dark:bg-slate-900 dark:border-gray-700 dark:shadow-slate-700/[.7]"
+                                    onclick={() => handleTransactionClick(transaction)}
+                                    onkeydown={(e) => e.key === 'Enter' && handleTransactionClick(transaction)}
+                                    tabindex="0"
+                                    role="button"
+                                    aria-label="View transaction details"
+                                >
+                                    <div class="p-4">
+                                        <!-- Date and Amount -->
+                                        <div class="flex justify-between items-center mb-3">
+                                            <span class="text-xs font-medium text-gray-500 dark:text-gray-400">
+                                                {new Date(transaction.operation_date).toLocaleDateString()}
+                                            </span>
+                                            {#if transaction.categories.reduce((sum, tc) => sum + tc.amount, 0) < 0}
+                                                <span class="text-base font-semibold text-red-600 dark:text-red-400">
+                                                    {formatEuro(transaction.categories.reduce((sum, tc) => sum + tc.amount, 0))}
+                                                </span>
+                                            {:else}
+                                                <span class="text-base font-semibold text-green-600 dark:text-green-400">
+                                                    {formatEuro(transaction.categories.reduce((sum, tc) => sum + tc.amount, 0))}
+                                                </span>
+                                            {/if}
+                                        </div>
+                                        
+                                        <!-- Description -->
+                                        <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-300 line-clamp-2 mb-2">
+                                            {transaction.user_description || transaction.description}
+                                        </h3>
+                                        
+                                        <!-- Categories -->
+                                        <div class="mt-auto">
+                                            <div class="flex flex-wrap gap-1 mt-2">
+                                                {#each transaction.categories as tc}
+                                                    <span class="inline-flex items-center gap-x-1.5 py-1 px-2 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200">
+                                                        {tc.category.name}
+                                                        {#if tc.subcategory}
+                                                            - {tc.subcategory.name} 
+                                                            <span class="text-xs font-semibold {tc.amount < 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}">
+                                                                {formatEuro(tc.amount)}
+                                                            </span>
+                                                        {/if}
+                                                    </span>
+                                                {/each}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            {/each}
+                        {:else}
+                            <div class="flex flex-col items-center justify-center p-8 text-center">
+                                <svg class="size-16 text-gray-300 dark:text-gray-600 mb-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg>
+                                <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-200">🙃 No transactions found 🙃</h3>
+                                <p class="text-gray-500 mt-1">Try adjusting your filters</p>
+                            </div>
+                        {/if}
                     </div>
 
                     <!-- Pagination Component -->
@@ -717,12 +850,6 @@
                             totalPages={data.totalPages}
                             on:pageChange={handlePageChange}
                         />
-                    </div>
-                {:else}
-                    <div class="flex flex-col items-center justify-center p-8 text-center">
-                        <svg class="size-16 text-gray-300 dark:text-gray-600 mb-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg>
-                        <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-200">🙃 No transactions found 🙃</h3>
-                        <p class="text-gray-500 mt-1">Try adjusting your filters</p>
                     </div>
                 {/if}
             {/if}
