@@ -5,7 +5,8 @@ DROP FUNCTION IF EXISTS get_category_totals;
 CREATE OR REPLACE FUNCTION get_category_totals(
     date_from DATE DEFAULT NULL,
     date_to DATE DEFAULT NULL,
-    type_filter TEXT DEFAULT 'all'
+    type_filter TEXT DEFAULT 'all',
+    search_term TEXT DEFAULT NULL
 )
 RETURNS TABLE (
     category_id INTEGER,
@@ -15,7 +16,25 @@ RETURNS TABLE (
 ) AS $$
 BEGIN
     RETURN QUERY
-    WITH filtered_transactions AS (
+    WITH base_transactions AS (
+        SELECT 
+            t.id,
+            t.description,
+            t.user_description,
+            t.operation_date
+        FROM transactions t
+        WHERE 
+            -- Date range filter
+            (date_from IS NULL OR t.operation_date >= date_from) AND
+            (date_to IS NULL OR t.operation_date <= date_to) AND
+            -- Search filter
+            (
+                search_term IS NULL OR
+                LOWER(t.description) ILIKE LOWER('%' || search_term || '%') OR
+                LOWER(COALESCE(t.user_description, '')) ILIKE LOWER('%' || search_term || '%')
+            )
+    ),
+    filtered_transactions AS (
         SELECT 
             t.id as transaction_id,
             tc.amount,
@@ -23,14 +42,11 @@ BEGIN
             tc.subcategory_id,
             c.name as category_name,
             s.name as subcategory_name
-        FROM transactions t
+        FROM base_transactions t
         INNER JOIN transaction_categories tc ON tc.transaction_id = t.id
         INNER JOIN categories c ON c.id = tc.category_id
         LEFT JOIN subcategories s ON s.id = tc.subcategory_id
         WHERE 
-            -- Date range filter
-            (date_from IS NULL OR t.operation_date >= date_from) AND
-            (date_to IS NULL OR t.operation_date <= date_to) AND
             -- Type filter
             (
                 type_filter = 'all' OR

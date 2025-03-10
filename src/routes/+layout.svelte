@@ -203,7 +203,7 @@
       <a class="flex-none text-xl font-semibold text-black dark:text-white" href="/" aria-label="Brand">Finreal</a>
     </div>
     <div class="mt-3">
-      <p class="text-gray-500">© 2023 Finreal. All rights reserved.</p>
+      <p class="text-gray-500">© {new Date().getFullYear()} Finreal. All rights reserved.</p>
     </div>
   </div>
 </footer>

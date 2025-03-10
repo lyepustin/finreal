@@ -221,6 +221,10 @@
                 searchParams.set('isNegative', filters.categories.isNegative.toString());
             }
 
+            if (filters.searchTerm) {
+                searchParams.set('searchTerm', filters.searchTerm);
+            }
+
             const response = await fetch(`/api/transactions/totals?${searchParams.toString()}`);
             const result = await response.json();
             
@@ -242,6 +246,7 @@
             if (filters.dateRange.from) searchParams.set('dateFrom', filters.dateRange.from);
             if (filters.dateRange.to) searchParams.set('dateTo', filters.dateRange.to);
             searchParams.set('type', filters.type.value);
+            if (filters.searchTerm) searchParams.set('searchTerm', filters.searchTerm);
 
             const response = await fetch(`/api/transactions/category-totals?${searchParams.toString()}`);
             const result = await response.json();
@@ -347,7 +352,24 @@
             searchTerm: detail.searchTerm
         };
         currentPage = 1;
-        submitFilters();
+
+        // Update URL parameters
+        const url = new URL(window.location.href);
+        if (detail.searchTerm) {
+            url.searchParams.set('searchTerm', detail.searchTerm);
+        } else {
+            url.searchParams.delete('searchTerm');
+        }
+        history.pushState(null, '', url);
+
+        if (showingCategories) {
+            await Promise.all([
+                fetchCategoryTotals(),
+                fetchTotals()  // Add this to update totals in category view
+            ]);
+        } else {
+            submitFilters();
+        }
     }
 
     async function submitFilters() {

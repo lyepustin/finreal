@@ -7,7 +7,8 @@ CREATE OR REPLACE FUNCTION get_transactions_totals(
     date_to DATE DEFAULT NULL,
     type_filter TEXT DEFAULT 'all',
     category_ids INTEGER[] DEFAULT NULL,
-    is_negative BOOLEAN DEFAULT FALSE
+    is_negative BOOLEAN DEFAULT FALSE,
+    search_term TEXT DEFAULT NULL
 )
 RETURNS TABLE (
     total_income NUMERIC,
@@ -16,21 +17,34 @@ RETURNS TABLE (
 ) AS $$
 BEGIN
     -- Log input parameters
-    RAISE NOTICE 'Input parameters: date_from=%, date_to=%, type_filter=%, category_ids=%, is_negative=%',
-        date_from, date_to, type_filter, category_ids, is_negative;
+    RAISE NOTICE 'Input parameters: date_from=%, date_to=%, type_filter=%, category_ids=%, is_negative=%, search_term=%',
+        date_from, date_to, type_filter, category_ids, is_negative, search_term;
 
     RETURN QUERY
-    WITH filtered_transactions AS (
+    WITH base_transactions AS (
         SELECT 
             t.id,
-            tc.amount,
-            tc.category_id
+            t.description,
+            t.user_description,
+            t.operation_date
         FROM transactions t
-        INNER JOIN transaction_categories tc ON tc.transaction_id = t.id
         WHERE 
             -- Date range filter
             (date_from IS NULL OR t.operation_date >= date_from) AND
             (date_to IS NULL OR t.operation_date <= date_to) AND
+            -- Search filter
+            (
+                search_term IS NULL OR
+                LOWER(t.description) ILIKE LOWER('%' || search_term || '%') OR
+                LOWER(COALESCE(t.user_description, '')) ILIKE LOWER('%' || search_term || '%')
+            )
+    ),
+    filtered_transactions AS (
+        SELECT 
+            tc.amount
+        FROM base_transactions t
+        INNER JOIN transaction_categories tc ON tc.transaction_id = t.id
+        WHERE 
             -- Category filter with is_negative handling
             (
                 category_ids IS NULL OR

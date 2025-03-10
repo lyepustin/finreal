@@ -7,6 +7,7 @@ CREATE OR REPLACE FUNCTION get_filtered_transactions(
     date_to DATE DEFAULT NULL,
     type_filter TEXT DEFAULT 'all',
     category_ids INTEGER[] DEFAULT NULL,
+    is_negative BOOLEAN DEFAULT FALSE,
     sort_column TEXT DEFAULT 'date',
     sort_direction TEXT DEFAULT 'desc',
     page_number INTEGER DEFAULT 1,
@@ -81,8 +82,14 @@ BEGIN
             -- Date range filter
             (date_from IS NULL OR t.operation_date >= date_from) AND
             (date_to IS NULL OR t.operation_date <= date_to) AND
-            -- Category filter
-            (category_ids IS NULL OR c.id = ANY(category_ids)) AND
+            -- Category filter with is_negative handling
+            (
+                category_ids IS NULL OR
+                CASE 
+                    WHEN is_negative THEN NOT (tc.category_id = ANY(category_ids))
+                    ELSE tc.category_id = ANY(category_ids)
+                END
+            ) AND
             -- Type filter
             (
                 type_filter = 'all' OR
