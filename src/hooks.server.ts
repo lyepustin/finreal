@@ -20,7 +20,11 @@ const supabase: Handle = async ({ event, resolve }) => {
        */
       setAll: (cookiesToSet) => {
         cookiesToSet.forEach(({ name, value, options }) => {
-          event.cookies.set(name, value, { ...options, path: '/' })
+          event.cookies.set(name, value, { 
+            ...options, 
+            path: '/',
+            secure: process.env.NODE_ENV === 'production' // Only require secure in production
+          })
         })
       },
     },

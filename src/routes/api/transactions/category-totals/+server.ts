@@ -11,27 +11,27 @@ export const GET: RequestHandler = async ({ url }) => {
             const dateFrom = url.searchParams.get('dateFrom');
             const dateTo = url.searchParams.get('dateTo');
             const typeValue = url.searchParams.get('type') || 'all';
+            const searchTerm = url.searchParams.get('searchTerm') || null;
 
             // Query the database for totals using Supabase rpc call
             const { data, error } = await supabase.rpc('get_category_totals', {
                 date_from: dateFrom ? dateFrom : null,
                 date_to: dateTo ? dateTo : null,
-                type_filter: typeValue
+                type_filter: typeValue,
+                search_term: searchTerm
             });
 
             if (error) {
-                console.error('Supabase RPC error:', error);
+                console.error('Error in get_category_totals:', error);
                 throw error;
             }
 
-            const response: CategoryTotalsResponse = {
+            return json({
                 success: true,
                 data: data as CategoryTotal[] || []
-            };
-
-            return json(response);
+            } as CategoryTotalsResponse);
         } catch (error) {
-            console.error('Error in get_category_totals:', error);
+            console.error('Error fetching category totals:', error);
             return json({
                 success: false,
                 error: 'Failed to fetch category totals'

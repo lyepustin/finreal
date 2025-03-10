@@ -18,18 +18,7 @@ export const GET: RequestHandler = async ({ url }) => {
             
             // Get category IDs if present
             const categoryIds = url.searchParams.getAll('categories.selected[]').map(id => parseInt(id));
-
-            console.log('Search params:', {
-                dateFrom,
-                dateTo,
-                typeValue,
-                sortColumn,
-                sortDirection,
-                page,
-                pageSize,
-                searchTerm,
-                categoryIds
-            });
+            const isNegative = url.searchParams.get('categories.isNegative') === 'true';
 
             // Query the database using the RPC function
             const { data, error } = await supabase.rpc('get_filtered_transactions', {
@@ -37,6 +26,7 @@ export const GET: RequestHandler = async ({ url }) => {
                 date_to: dateTo || null,
                 type_filter: typeValue,
                 category_ids: categoryIds.length > 0 ? categoryIds : null,
+                is_negative: isNegative,
                 sort_column: sortColumn,
                 sort_direction: sortDirection,
                 page_number: page,
@@ -56,16 +46,16 @@ export const GET: RequestHandler = async ({ url }) => {
                 success: true,
                 data: {
                     transactions: transactions || [],
-                    totalCount: total_count || 0,
+                    totalCount: total_count,
                     currentPage: page,
-                    totalPages: Math.ceil((total_count || 0) / pageSize)
+                    totalPages: Math.ceil(total_count / pageSize)
                 }
             });
         } catch (error) {
             console.error('Error in get_filtered_transactions:', error);
             return json({
                 success: false,
-                error: error instanceof Error ? error.message : 'Failed to fetch transactions'
+                error: 'Failed to fetch transactions'
             }, { status: 500 });
         }
     });
