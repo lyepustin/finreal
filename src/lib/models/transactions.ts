@@ -67,28 +67,27 @@ export async function updateTransactionCategories(
     categories: { categoryId: number; subcategoryId: number | null; amount: number }[]
 ): Promise<void> {
     try {
-        const { error: deleteError } = await supabase
-            .from('transaction_categories')
-            .delete()
-            .eq('transaction_id', transactionId);
+        // Validate input
+        if (!transactionId || !categories || categories.length === 0) {
+            throw new Error('Invalid input: transactionId and categories are required');
+        }
 
-        if (deleteError) throw new Error('Failed to delete existing categories');
+        // Call the database function to update categories atomically
+        const { error: updateError } = await supabase.rpc(
+            'update_transaction_categories',
+            {
+                p_transaction_id: transactionId,
+                p_categories: categories
+            }
+        );
 
-        const newCategories = categories.map(cat => ({
-            transaction_id: transactionId,
-            category_id: cat.categoryId,
-            subcategory_id: cat.subcategoryId,
-            amount: cat.amount
-        }));
-
-        const { error: insertError } = await supabase
-            .from('transaction_categories')
-            .insert(newCategories);
-
-        if (insertError) throw new Error('Failed to insert new categories');
+        if (updateError) {
+            console.error('Error updating transaction categories:', updateError);
+            throw new Error('Failed to update transaction categories');
+        }
     } catch (err) {
         console.error('Error updating transaction categories:', err);
-        throw error(500, 'Failed to update transaction categories');
+        throw error(500, err instanceof Error ? err.message : 'Failed to update transaction categories');
     }
 }
 
