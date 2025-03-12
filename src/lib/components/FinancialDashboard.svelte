@@ -162,11 +162,36 @@
 
     // Format x-axis label based on period
     function formatXAxisLabel(period: string, date: string): string {
-        const currentDate = new Date(date);
+        // Handle MMM YYYY format (e.g., "Nov 2024")
+        if (date.match(/^[A-Za-z]{3}\s\d{4}$/)) {
+            const [monthStr, yearStr] = date.split(' ');
+            const monthIndex = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+                .findIndex(m => m === monthStr);
+            
+            if (monthIndex !== -1) {
+                switch (selectedPeriod) {
+                    case 'month':
+                        return monthStr;
+                    case 'year':
+                        return yearStr;
+                    default:
+                        return date;
+                }
+            }
+        }
+
+        // Fallback to standard date parsing for other formats
+        const safeDate = date.includes('T') ? date : `${date}T00:00:00`;
+        const currentDate = new Date(safeDate);
+        
+        if (isNaN(currentDate.getTime())) {
+            console.error('Invalid date:', date);
+            return period;
+        }
         
         switch (selectedPeriod) {
             case 'month':
-                return `${getMonthName(currentDate.getMonth())}`;
+                return getMonthName(currentDate.getMonth());
             case 'year':
                 return currentDate.getFullYear().toString();
             default:

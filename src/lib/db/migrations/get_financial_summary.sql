@@ -57,8 +57,8 @@ BEGIN
             DATE_TRUNC(period_type, date_series + interval_step) - INTERVAL '1 day' as period_end
         FROM generate_series(start_date, end_date, interval_step) as date_series
     ),
-    transactions_by_category AS (
-        -- First aggregate transactions by category within each period
+    transactions_with_totals AS (
+        -- Calculate income and expenses at the transaction level
         SELECT
             CASE 
                 WHEN period_type = 'month' THEN 
@@ -68,23 +68,36 @@ BEGIN
             END as period_label,
             c.id as category_id,
             c.name as category_name,
-            SUM(tc.amount) as total_amount
+            tc.amount,
+            CASE WHEN tc.amount > 0 THEN tc.amount ELSE 0 END as income_amount,
+            CASE WHEN tc.amount < 0 THEN ABS(tc.amount) ELSE 0 END as expense_amount
         FROM transactions t
         JOIN transaction_categories tc ON tc.transaction_id = t.id
         JOIN categories c ON c.id = tc.category_id
         WHERE t.operation_date BETWEEN start_date AND end_date
         AND LOWER(c.name) != 'transfers ♻️'
+    ),
+    transactions_by_category AS (
+        -- Aggregate by category within each period
+        SELECT
+            period_label,
+            category_id,
+            category_name,
+            SUM(amount) as total_amount,
+            SUM(income_amount) as category_income,
+            SUM(expense_amount) as category_expenses
+        FROM transactions_with_totals
         GROUP BY 
             period_label,
-            c.id,
-            c.name
+            category_id,
+            category_name
     ),
     transactions_summary AS (
         SELECT
             period_label,
-            COALESCE(SUM(CASE WHEN total_amount > 0 THEN total_amount ELSE 0 END), 0) as total_income,
-            COALESCE(SUM(CASE WHEN total_amount < 0 THEN ABS(total_amount) ELSE 0 END), 0) as total_expenses,
-            COALESCE(SUM(total_amount), 0) as net_amount,
+            SUM(category_income) as total_income,
+            SUM(category_expenses) as total_expenses,
+            SUM(total_amount) as net_amount,
             JSONB_AGG(
                 JSONB_BUILD_OBJECT(
                     'id', category_id::TEXT,

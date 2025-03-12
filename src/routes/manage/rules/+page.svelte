@@ -399,16 +399,11 @@
                                                         method="POST"
                                                         action="?/applyRule"
                                                         use:enhance={() => {
-                                                            console.log('Starting apply rule...');
                                                             isLoading = true;
                                                             errorMessage = null;
-                                                            
                                                             return async ({ result }) => {
-                                                                console.log('Apply rule result:', result);
                                                                 isLoading = false;
-                                                                
                                                                 if (result.type === 'success') {
-                                                                    console.log('Apply rule success, affected count:', result.data?.affectedCount);
                                                                     if (result.data?.rules) {
                                                                         rules = result.data.rules;
                                                                         // Update the selected subcategory's rules if it exists

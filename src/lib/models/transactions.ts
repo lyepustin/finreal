@@ -1,61 +1,17 @@
 import type { Transaction } from '$lib/types';
 import { error } from '@sveltejs/kit';
-import { supabase } from '$lib/db/supabase';
 
 export async function getTransaction(id: number): Promise<Transaction> {
     try {
-        const { data: transaction, error: err } = await supabase
-            .from('transactions')
-            .select(`
-                id,
-                uuid,
-                account_id,
-                operation_date,
-                value_date,
-                inserted_at,
-                description,
-                user_description,
-                categories:transaction_categories!inner (
-                    id,
-                    transaction_id,
-                    category_id,
-                    subcategory_id,
-                    amount,
-                    category:categories!inner (
-                        id,
-                        name,
-                        subcategories:subcategories (
-                            id,
-                            category_id,
-                            name
-                        )
-                    ),
-                    subcategory:subcategories (
-                        id,
-                        category_id,
-                        name
-                    )
-                ),
-                account:accounts!inner (
-                    id,
-                    bank_id,
-                    account_type,
-                    account_number,
-                    bank:banks!inner (
-                        id,
-                        name
-                    )
-                )
-            `)
-            .eq('id', id)
-            .single();
+        const response = await fetch(`/api/transactions/${id}`);
 
-        if (err || !transaction) {
-            console.error('Error fetching transaction:', err);
+        if (!response.ok) {
+            console.error('Error fetching transaction:', response.statusText);
             throw error(500, 'Failed to fetch transaction');
         }
 
-        return transaction as unknown as Transaction;
+        const transaction = await response.json();
+        return transaction as Transaction;
     } catch (err) {
         console.error('Error in getTransaction:', err);
         throw error(500, 'Internal server error');
@@ -72,17 +28,17 @@ export async function updateTransactionCategories(
             throw new Error('Invalid input: transactionId and categories are required');
         }
 
-        // Call the database function to update categories atomically
-        const { error: updateError } = await supabase.rpc(
-            'update_transaction_categories',
-            {
-                p_transaction_id: transactionId,
-                p_categories: categories
-            }
-        );
+        const response = await fetch(`/api/transactions/${transactionId}/categories`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ categories })
+        });
 
-        if (updateError) {
-            console.error('Error updating transaction categories:', updateError);
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('Error updating transaction categories:', errorText);
             throw new Error('Failed to update transaction categories');
         }
     } catch (err) {
@@ -96,13 +52,16 @@ export async function updateTransactionDescription(
     userDescription: string
 ): Promise<void> {
     try {
-        const { error: err } = await supabase
-            .from('transactions')
-            .update({ user_description: userDescription })
-            .eq('id', transactionId);
+        const response = await fetch(`/api/transactions/${transactionId}/description`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ description: userDescription })
+        });
 
-        if (err) {
-            console.error('Error updating transaction description:', err);
+        if (!response.ok) {
+            console.error('Error updating transaction description:', response.statusText);
             throw error(500, 'Failed to update transaction description');
         }
     } catch (err) {

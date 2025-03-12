@@ -91,6 +91,12 @@
                 const defaultRange = getDefaultMonthDateRange();
                 url.searchParams.set('dateFrom', defaultRange.from);
                 url.searchParams.set('dateTo', defaultRange.to);
+            }
+
+            // Set default category filter if no category filters are present
+            if (!url.searchParams.has('categories[]') && !url.searchParams.has('category')) {
+                url.searchParams.append('categories[]', '17');
+                url.searchParams.set('categoriesNegative', 'true');
                 history.replaceState(null, '', url);
             }
             
@@ -104,12 +110,16 @@
                 sortColumn: url.searchParams.get('sort.column') || 'date',
                 sortDirection: url.searchParams.get('sort.direction') || 'desc',
                 searchTerm: url.searchParams.get('searchTerm') || '',
-                page: parseInt(url.searchParams.get('page') || '1')
+                page: parseInt(url.searchParams.get('page') || '1'),
+                // Get category filters (will now include defaults if none were in URL)
+                categories: url.searchParams.getAll('categories[]'),
+                categoriesNegative: url.searchParams.get('categoriesNegative') === 'true'
             };
 
             // Update local state without triggering effects
             currentUrl = url;
             currentPage = params.page;
+            // Only show categories view if no specific category is selected for viewing
             showingCategories = !params.categoryId;
             
             if (params.categoryId && params.categoryName) {
@@ -128,8 +138,8 @@
                     to: params.dateTo || ''
                 },
                 categories: {
-                    selected: params.categoryId ? [params.categoryId] : [],
-                    isNegative: false
+                    selected: params.categories,
+                    isNegative: params.categoriesNegative
                 },
                 sort: {
                     column: params.sortColumn as any,
@@ -304,7 +314,6 @@
     }
 
     function handleTransactionClick(transaction: Transaction) {
-        console.log('Transaction clicked:', transaction);
         if (!transaction?.id) {
             console.error('Invalid transaction:', transaction);
             showToast('error', 'Invalid transaction data');
@@ -327,7 +336,14 @@
             id: category.id,
             name: category.name
         };
-        filters.categories.selected = [category.id.toString()];
+        // Update filters to include the selected category
+        filters = {
+            ...filters,
+            categories: {
+                selected: [category.id.toString()],
+                isNegative: false // Always set to false when viewing a specific category
+            }
+        };
         currentPage = 1;
         submitFilters();
     }
@@ -342,7 +358,15 @@
         };
         showingCategories = true;
         selectedCategory = null;
-        filters.categories.selected = [];
+        // Restore default category filter (excluding category 17)
+        filters = {
+            ...filters,
+            categories: {
+                selected: ['17'],
+                isNegative: true
+            }
+        };
+        currentPage = 1;
         submitFilters();
     }
 
@@ -391,6 +415,14 @@
             
             if (filters.searchTerm) {
                 searchParams.set('searchTerm', filters.searchTerm);
+            }
+            
+            // Add category filters to URL
+            if (filters.categories.selected.length > 0) {
+                filters.categories.selected.forEach(categoryId => {
+                    searchParams.append('categories[]', categoryId);
+                });
+                searchParams.set('categoriesNegative', filters.categories.isNegative.toString());
             }
             
             if (selectedCategory) {
@@ -452,25 +484,16 @@
 
         const transactionId = selectedTransaction.id; // Store ID locally
         const oldDescription = selectedTransaction.user_description || selectedTransaction.description;
-
-        console.log('Saving transaction:', {
-            id: transactionId,
-            oldDescription,
-            newDescription: detail.description,
-            categories: detail.categories
-        });
         
         try {
             isLoading = true;
             
             // Update description if changed
             if (detail.description !== oldDescription) {
-                console.log('Updating description from', oldDescription, 'to', detail.description);
                 await transactionModel.updateTransactionDescription(transactionId, detail.description);
             }
             
             // Update categories
-            console.log('Updating categories:', detail.categories);
             await transactionModel.updateTransactionCategories(transactionId, detail.categories);
             
             // Refresh data
@@ -654,12 +677,20 @@
             {#if showingCategories}
                 <!-- Categories Grid -->
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-4">
-                    {#each categoryTotals.filter(cat => 
-                        filters.type.value === 'all' || 
-                        (filters.type.value === 'income' && cat.total_amount > 0) ||
-                        (filters.type.value === 'expense' && cat.total_amount < 0)
-                    ) as category}
-                        <!-- Category Card -->
+                    {#each categoryTotals.filter(cat => {
+                        // First check transaction type filter
+                        const matchesType = filters.type.value === 'all' || 
+                            (filters.type.value === 'income' && cat.total_amount > 0) ||
+                            (filters.type.value === 'expense' && cat.total_amount < 0);
+
+                        // Then check category filter if any are selected
+                        const matchesCategory = filters.categories.selected.length === 0 || 
+                            (filters.categories.isNegative 
+                                ? !filters.categories.selected.includes(cat.category_id.toString())
+                                : filters.categories.selected.includes(cat.category_id.toString()));
+
+                        return matchesType && matchesCategory;
+                    }) as category}
                         <div 
                             class="group flex flex-col h-full bg-white border border-gray-200 shadow-sm rounded-xl hover:shadow-md transition dark:bg-slate-900 dark:border-gray-700 dark:shadow-slate-700/[.7] cursor-pointer"
                             onclick={() => handleCategoryClick({ id: category.category_id, name: category.category_name })}
@@ -669,7 +700,6 @@
                             aria-label="View transactions for {category.category_name}"
                         >
                             <div class="p-4">
-                                <!-- Category Name and Total -->
                                 <div class="flex justify-between items-center mb-3">
                                     <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-300">
                                         {category.category_name}
@@ -679,7 +709,6 @@
                                     </span>
                                 </div>
                                 
-                                <!-- Subcategories -->
                                 {#if category.subcategories?.length}
                                     <div class="mt-2">
                                         <div class="flex flex-wrap gap-1.5">

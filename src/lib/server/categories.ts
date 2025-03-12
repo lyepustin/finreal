@@ -1,8 +1,8 @@
 import type { Category } from '$lib/types';
 import { error } from '@sveltejs/kit';
-import { supabase } from '$lib/db/supabase';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
-export async function getCategories(): Promise<Category[]> {
+export async function getCategories(supabase: SupabaseClient): Promise<Category[]> {
     try {
         const { data: categories, error: err } = await supabase
             .from('categories')

@@ -25,6 +25,7 @@ export type Category = {
     id: number
     name: string
     subcategories: SubCategory[]
+    user_id: string
 }
 
 export type SubCategory = {
@@ -44,6 +45,7 @@ export type Account = {
 export type Bank = {
     id: number
     name: string
+    user_id: string
 }
 
 export type Rule = {
@@ -51,4 +53,5 @@ export type Rule = {
     pattern: string
     category_id: number
     subcategory_id: number
+    user_id: string
 } 

@@ -77,11 +77,6 @@
                 throw new Error('Category amounts must sum up to the total transaction amount');
             }
 
-            console.log('Dispatching save event with:', {
-                description: selectedDescription,
-                categories: selectedCategories
-            });
-
             dispatch('save', {
                 description: selectedDescription,
                 categories: selectedCategories
@@ -175,33 +170,23 @@
     }
 
     function openCategorySelection(index: number) {
-        console.log('Opening category selection for index:', index);
-        console.log('Current categories state:', selectedCategories);
         editingCategoryIndex = index;
         categorySelectionModalOpen = true;
     }
 
     function handleCategorySelect(event: CustomEvent<{ categoryId: number; subcategoryId: number | null }>) {
-        console.log('handleCategorySelect called with event:', event.detail);
-        console.log('Current editingCategoryIndex:', editingCategoryIndex);
-        
         if (editingCategoryIndex === null) {
-            console.log('Warning: editingCategoryIndex is null, returning early');
             return;
         }
         
         const { categoryId, subcategoryId } = event.detail;
-        console.log('Before update - selectedCategories:', selectedCategories);
         
         selectedCategories = selectedCategories.map((cat, index) => {
-            const newCat = index === editingCategoryIndex 
+            return index === editingCategoryIndex 
                 ? { ...cat, categoryId, subcategoryId }
                 : cat;
-            console.log(`Category at index ${index}:`, newCat);
-            return newCat;
         });
         
-        console.log('After update - selectedCategories:', selectedCategories);
         categorySelectionModalOpen = false;
         editingCategoryIndex = null;
         selectedCategoryForSubcategories = null;
@@ -433,7 +418,6 @@
                             type="button"
                             class="bg-white dark:bg-slate-900 hover:bg-gray-50 dark:hover:bg-gray-800/50 p-4 flex items-center justify-between"
                             onclick={() => {
-                                console.log('Category clicked:', cat);
                                 if (!cat.subcategories?.length) {
                                     handleCategorySelect({ detail: { categoryId: cat.id, subcategoryId: null } } as CustomEvent);
                                 } else {
@@ -464,7 +448,6 @@
                             type="button"
                             class="bg-white dark:bg-slate-900 hover:bg-gray-50 dark:hover:bg-gray-800/50 p-4 flex items-center justify-between"
                             onclick={() => {
-                                console.log('Subcategory clicked:', subcat);
                                 handleCategorySelect({ 
                                     detail: { 
                                         categoryId: selectedCategoryForSubcategories.id, 

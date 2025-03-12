@@ -29,7 +29,12 @@
 	// Direct sign-out function using the utility
 	async function handleDirectSignOut() {
 	  collapseMenu();
-	  await signOut();
+	  try {
+	    await signOut();
+	    // The form submission will handle the redirect
+	  } catch (error) {
+	    console.error('Failed to sign out:', error);
+	  }
 	}
 	
 	// Function to collapse the mobile menu
@@ -53,9 +58,11 @@
 	}
   
 	onMount(() => {
-	  const { data } = supabase.auth.onAuthStateChange((_, newSession) => {
-		if (newSession?.expires_at !== session?.expires_at) {
-		  invalidate('supabase:auth')
+	  const { data } = supabase.auth.onAuthStateChange(async (event, newSession) => {
+		if (event === 'SIGNED_OUT') {
+		  await invalidate('supabase:auth');
+		} else if (newSession?.expires_at !== session?.expires_at) {
+		  await invalidate('supabase:auth');
 		}
 	  })
 

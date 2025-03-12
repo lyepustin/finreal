@@ -1,6 +1,5 @@
 <script lang="ts">
     import { fade, fly } from 'svelte/transition';
-    import { supabase } from '$lib/db/supabase';
 
     type Bank = {
         id: number;
@@ -19,26 +18,16 @@
     // Fetch initial bank data and then balances
     async function fetchBankData() {
         try {
-            // First fetch basic bank information
-            const { data: basicBanks, error: basicError } = await supabase
-                .from('banks')
-                .select('id, name');
-
-            if (basicError) throw new Error('Failed to fetch basic bank data');
-
-            // Update banks with basic information
-            banks = basicBanks.map(bank => ({
-                id: bank.id,
-                name: bank.name,
-                balance: 0,
-                accountCounts: {
-                    bank_account: 0
-                }
-            }));
-
-            // Then fetch detailed balance information
+            // Fetch all bank data from the server endpoint
             const response = await fetch('/api/bank-balances');
-            if (!response.ok) throw new Error('Failed to fetch balances');
+            
+            if (response.status === 401) {
+                // Handle unauthorized - redirect to auth page
+                window.location.href = '/auth';
+                return;
+            }
+            
+            if (!response.ok) throw new Error('Failed to fetch bank data');
             
             const data = await response.json();
             banks = data.banks;

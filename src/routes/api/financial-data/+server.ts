@@ -1,8 +1,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
-import { supabase } from '$lib/db/supabase';
 
-export const GET: RequestHandler = async ({ url }) => {
+export const GET: RequestHandler = async ({ locals: { supabase }, url }) => {
     try {
         const period = url.searchParams.get('period') || 'month';
         const offset = parseInt(url.searchParams.get('offset') || '0');
