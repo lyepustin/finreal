@@ -164,83 +164,81 @@
 
 <div class="space-y-8">
     <!-- Categories Section -->
-    <div class="bg-white border border-gray-200 rounded-xl shadow-sm dark:bg-slate-900 dark:border-gray-700">
-        <div class="p-4 md:p-5">
-            <div class="flex justify-between items-center mb-6">
-                <h2 class="text-xl font-semibold text-gray-800 dark:text-gray-200">
-                    Categories
-                </h2>
-                <button
-                    type="button"
-                    class="py-2 px-3 inline-flex items-center gap-x-2 text-sm font-semibold rounded-lg border border-transparent bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:pointer-events-none dark:focus:outline-none dark:focus:ring-1 dark:focus:ring-gray-600"
-                    onclick={() => handleEditCategory({ id: 0, name: '', subcategories: [] })}
-                >
-                    <svg class="flex-shrink-0 size-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
-                    Add Category
-                </button>
-            </div>
+    <div class="p-4 md:p-5">
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-xl font-semibold text-gray-800 dark:text-gray-200">
+                Categories
+            </h2>
+            <button
+                type="button"
+                class="py-2 px-3 inline-flex items-center gap-x-2 text-sm font-semibold rounded-lg border border-transparent bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:pointer-events-none dark:focus:outline-none dark:focus:ring-1 dark:focus:ring-gray-600"
+                onclick={() => handleEditCategory({ id: 0, name: '', subcategories: [] })}
+            >
+                <svg class="flex-shrink-0 size-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+                Add Category
+            </button>
+        </div>
 
-            <!-- Categories Grid -->
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-4">
-                {#each getSortedCategories() as category}
-                    <!-- Category Card -->
-                    <div class="group flex flex-col h-full bg-white border border-gray-200 shadow-sm rounded-xl dark:bg-slate-900 dark:border-gray-700 dark:shadow-slate-700/[.7]">
-                        <div class="p-4">
-                            <!-- Category Name -->
-                            <button
-                                type="button"
-                                class="w-full flex justify-between items-center mb-3 hover:text-blue-600 dark:hover:text-blue-400"
-                                onclick={() => handleEditCategory(category)}
-                            >
-                                <div class="flex items-center gap-2">
-                                    <h3 class="text-lg font-semibold text-inherit">
-                                        {category.name}
-                                    </h3>
-                                    <span class="text-xs font-medium px-2 py-1 rounded-full bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400">
-                                        {getTotalTransactions(category.id)} transactions
-                                    </span>
-                                </div>
-                                <svg class="size-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
-                            </button>
-                            
-                            <!-- Subcategories -->
-                            <div class="mt-2">
-                                <div class="flex flex-wrap gap-1.5">
-                                    {#each category.subcategories as subcategory}
-                                        <button
-                                            type="button"
-                                            class="inline-flex items-center gap-x-1.5 py-1 px-2 rounded-full text-xs font-medium bg-blue-100 text-blue-800 hover:bg-blue-200 dark:bg-blue-900 dark:text-blue-200 dark:hover:bg-blue-800"
-                                            onclick={() => handleEditSubcategory(category.id, subcategory)}
-                                        >
-                                            {subcategory.name}
-                                            {#if transactionCounts.get(category.id)?.subcategories.get(subcategory.id)}
-                                                <span class="ml-1 px-1.5 py-0.5 rounded-full bg-blue-200 text-blue-900 dark:bg-blue-800 dark:text-blue-100">
-                                                    {transactionCounts.get(category.id)?.subcategories.get(subcategory.id)}
-                                                </span>
-                                            {/if}
-                                        </button>
-                                    {/each}
+        <!-- Categories Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-4">
+            {#each getSortedCategories() as category}
+                <!-- Category Card -->
+                <div class="group flex flex-col h-full bg-white border border-gray-200 shadow-sm rounded-xl dark:bg-slate-900 dark:border-gray-700 dark:shadow-slate-700/[.7]">
+                    <div class="p-4">
+                        <!-- Category Name -->
+                        <button
+                            type="button"
+                            class="w-full flex justify-between items-center mb-3 hover:text-blue-600 dark:hover:text-blue-400"
+                            onclick={() => handleEditCategory(category)}
+                        >
+                            <div class="flex items-center gap-2">
+                                <h3 class="text-lg font-semibold text-inherit">
+                                    {category.name}
+                                </h3>
+                                <span class="text-xs font-medium px-2 py-1 rounded-full bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400">
+                                    {getTotalTransactions(category.id)} transactions
+                                </span>
+                            </div>
+                            <svg class="size-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
+                        </button>
+                        
+                        <!-- Subcategories -->
+                        <div class="mt-2">
+                            <div class="flex flex-wrap gap-1.5">
+                                {#each category.subcategories as subcategory}
                                     <button
                                         type="button"
                                         class="inline-flex items-center gap-x-1.5 py-1 px-2 rounded-full text-xs font-medium bg-blue-100 text-blue-800 hover:bg-blue-200 dark:bg-blue-900 dark:text-blue-200 dark:hover:bg-blue-800"
-                                        onclick={() => handleEditSubcategory(category.id)}
+                                        onclick={() => handleEditSubcategory(category.id, subcategory)}
                                     >
-                                        <svg class="size-3" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
-                                        Add
+                                        {subcategory.name}
+                                        {#if transactionCounts.get(category.id)?.subcategories.get(subcategory.id)}
+                                            <span class="ml-1 px-1.5 py-0.5 rounded-full bg-blue-200 text-blue-900 dark:bg-blue-800 dark:text-blue-100">
+                                                {transactionCounts.get(category.id)?.subcategories.get(subcategory.id)}
+                                            </span>
+                                        {/if}
                                     </button>
-                                </div>
+                                {/each}
+                                <button
+                                    type="button"
+                                    class="inline-flex items-center gap-x-1.5 py-1 px-2 rounded-full text-xs font-medium bg-blue-100 text-blue-800 hover:bg-blue-200 dark:bg-blue-900 dark:text-blue-200 dark:hover:bg-blue-800"
+                                    onclick={() => handleEditSubcategory(category.id)}
+                                >
+                                    <svg class="size-3" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+                                    Add
+                                </button>
                             </div>
                         </div>
                     </div>
-                {/each}
-            </div>
+                </div>
+            {/each}
         </div>
     </div>
 
     <!-- Delete Confirmation Modal -->
     {#if deleteConfirmationOpen}
     <div 
-        class="fixed inset-0 z-[70] flex items-center justify-center p-0 sm:p-6 bg-transparent"
+        class="fixed inset-0 z-[80] flex items-center justify-center p-4 sm:p-6 bg-transparent"
         role="dialog"
         aria-modal="true"
         aria-labelledby="delete-modal-title"
@@ -255,7 +253,7 @@
         ></div>
 
         <!-- Modal Content -->
-        <div class="relative bg-white dark:bg-slate-900 w-full h-auto sm:h-auto sm:w-[500px] max-h-[calc(100vh-2rem)] flex flex-col overflow-hidden shadow-xl sm:rounded-2xl">
+        <div class="relative bg-white dark:bg-slate-900 w-[calc(100%-2rem)] sm:w-[500px] max-h-[calc(100vh-4rem)] flex flex-col overflow-hidden shadow-xl rounded-2xl">
             <div class="flex-none flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
                 <h2 id="delete-modal-title" class="text-lg font-semibold text-gray-900 dark:text-white">
                     Delete {itemToDelete?.type === 'category' ? 'Category' : 'Subcategory'}
@@ -309,21 +307,22 @@
     <!-- Edit Category/Subcategory Modal -->
     {#if editingCategory || editingSubcategory}
     <div 
-        class="fixed inset-0 z-[60] flex items-center justify-center p-0 sm:p-6 bg-transparent"
+        class="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6 bg-transparent"
         role="dialog"
         aria-modal="true"
+        aria-labelledby="edit-modal-title"
     >
         <!-- Backdrop -->
         <div 
             class="fixed inset-0 bg-black/50 backdrop-blur-sm" 
-            aria-hidden="true"
+            aria-hidden="true" 
             onclick={handleCancelEdit}
             onkeydown={(e) => e.key === 'Escape' && handleCancelEdit()}
             role="presentation"
         ></div>
 
         <!-- Modal Content -->
-        <div class="relative bg-white dark:bg-slate-900 w-full h-auto sm:h-auto sm:w-[500px] max-h-[calc(100vh-2rem)] flex flex-col overflow-hidden shadow-xl sm:rounded-2xl">
+        <div class="relative bg-white dark:bg-slate-900 w-[calc(100%-2rem)] sm:w-[500px] max-h-[calc(100vh-4rem)] flex flex-col overflow-hidden shadow-xl rounded-2xl">
             <form 
                 method="POST"
                 action={editingCategory ? "?/upsertCategory" : "?/upsertSubcategory"}
@@ -331,7 +330,7 @@
                 class="flex flex-col h-full"
             >
                 <div class="flex-none flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
-                    <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+                    <h2 id="edit-modal-title" class="text-lg font-semibold text-gray-900 dark:text-white">
                         {#if editingCategory}
                             {editingCategory.id ? 'Edit Category' : 'New Category'}
                         {:else if editingSubcategory}
@@ -374,16 +373,16 @@
                             type="text"
                             id="name"
                             name="name"
-                            class="py-3 px-4 block w-full border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500"
+                            class="py-3 px-4 block w-full border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-slate-800 dark:border-gray-700 dark:text-gray-400"
                             value={editingCategory ? editingCategory.name : editingSubcategory?.subcategory?.name ?? ''}
+                            placeholder={editingCategory ? 'food services 🍕' : 'restaurants'}
                             required
                             use:focusOnMount
                         />
                     </div>
-
                 </div>
 
-                <div class="flex-none p-4 sm:p-6 border-t border-gray-200 dark:border-gray-700">
+                <div class="flex-none p-4 sm:p-6 bg-gray-50 dark:bg-slate-800 border-t border-gray-200 dark:border-gray-700">
                     <div class="flex flex-col-reverse sm:flex-row justify-end gap-3">
                         <button
                             type="button"
