@@ -7,6 +7,7 @@
     let { data } = $props<{ data: PageData }>();
     let categories = $state(data.categories);
     let isLoading = $state(false);
+    let isLoadingCategories = $state(true);
     let editingCategory = $state<Category | null>(null);
     let editingSubcategory = $state<{ categoryId: number, subcategory: SubCategory | null }>(null);
     let deleteConfirmationOpen = $state(false);
@@ -141,6 +142,7 @@
     // Fetch transaction counts on mount
     onMount(async () => {
         try {
+            isLoadingCategories = true;
             const response = await fetch('/api/category-transaction-counts');
             const data = await response.json();
             
@@ -158,6 +160,9 @@
             }
         } catch (error) {
             console.error('Error fetching transaction counts:', error);
+            showToast('error', 'Failed to load category transaction counts');
+        } finally {
+            isLoadingCategories = false;
         }
     });
 </script>
@@ -180,59 +185,67 @@
         </div>
 
         <!-- Categories Grid -->
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-4">
-            {#each getSortedCategories() as category}
-                <!-- Category Card -->
-                <div class="group flex flex-col h-full bg-white border border-gray-200 shadow-sm rounded-xl dark:bg-slate-900 dark:border-gray-700 dark:shadow-slate-700/[.7]">
-                    <div class="p-4">
-                        <!-- Category Name -->
-                        <button
-                            type="button"
-                            class="w-full flex justify-between items-center mb-3 hover:text-blue-600 dark:hover:text-blue-400"
-                            onclick={() => handleEditCategory(category)}
-                        >
-                            <div class="flex items-center gap-2">
-                                <h3 class="text-lg font-semibold text-inherit">
-                                    {category.name}
-                                </h3>
-                                <span class="text-xs font-medium px-2 py-1 rounded-full bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400">
-                                    {getTotalTransactions(category.id)} transactions
-                                </span>
-                            </div>
-                            <svg class="size-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
-                        </button>
-                        
-                        <!-- Subcategories -->
-                        <div class="mt-2">
-                            <div class="flex flex-wrap gap-1.5">
-                                {#each category.subcategories as subcategory}
+        {#if isLoadingCategories}
+            <div class="flex justify-center items-center py-12">
+                <div class="animate-spin inline-block size-8 border-[3px] border-current border-t-transparent text-blue-600 rounded-full dark:text-blue-500" role="status" aria-label="loading">
+                    <span class="sr-only">Loading...</span>
+                </div>
+            </div>
+        {:else}
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-4">
+                {#each getSortedCategories() as category}
+                    <!-- Category Card -->
+                    <div class="group flex flex-col h-full bg-white border border-gray-200 shadow-sm rounded-xl dark:bg-slate-900 dark:border-gray-700 dark:shadow-slate-700/[.7]">
+                        <div class="p-4">
+                            <!-- Category Name -->
+                            <button
+                                type="button"
+                                class="w-full flex justify-between items-center mb-3 hover:text-blue-600 dark:hover:text-blue-400"
+                                onclick={() => handleEditCategory(category)}
+                            >
+                                <div class="flex items-center gap-2">
+                                    <h3 class="text-lg font-semibold text-inherit">
+                                        {category.name}
+                                    </h3>
+                                    <span class="text-xs font-medium px-2 py-1 rounded-full bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400">
+                                        {getTotalTransactions(category.id)} transactions
+                                    </span>
+                                </div>
+                                <svg class="size-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
+                            </button>
+                            
+                            <!-- Subcategories -->
+                            <div class="mt-2">
+                                <div class="flex flex-wrap gap-1.5">
+                                    {#each category.subcategories as subcategory}
+                                        <button
+                                            type="button"
+                                            class="inline-flex items-center gap-x-1.5 py-1 px-2 rounded-full text-xs font-medium bg-blue-100 text-blue-800 hover:bg-blue-200 dark:bg-blue-900 dark:text-blue-200 dark:hover:bg-blue-800"
+                                            onclick={() => handleEditSubcategory(category.id, subcategory)}
+                                        >
+                                            {subcategory.name}
+                                            {#if transactionCounts.get(category.id)?.subcategories.get(subcategory.id)}
+                                                <span class="ml-1 px-1.5 py-0.5 rounded-full bg-blue-200 text-blue-900 dark:bg-blue-800 dark:text-blue-100">
+                                                    {transactionCounts.get(category.id)?.subcategories.get(subcategory.id)}
+                                                </span>
+                                            {/if}
+                                        </button>
+                                    {/each}
                                     <button
                                         type="button"
                                         class="inline-flex items-center gap-x-1.5 py-1 px-2 rounded-full text-xs font-medium bg-blue-100 text-blue-800 hover:bg-blue-200 dark:bg-blue-900 dark:text-blue-200 dark:hover:bg-blue-800"
-                                        onclick={() => handleEditSubcategory(category.id, subcategory)}
+                                        onclick={() => handleEditSubcategory(category.id)}
                                     >
-                                        {subcategory.name}
-                                        {#if transactionCounts.get(category.id)?.subcategories.get(subcategory.id)}
-                                            <span class="ml-1 px-1.5 py-0.5 rounded-full bg-blue-200 text-blue-900 dark:bg-blue-800 dark:text-blue-100">
-                                                {transactionCounts.get(category.id)?.subcategories.get(subcategory.id)}
-                                            </span>
-                                        {/if}
+                                        <svg class="size-3" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+                                        Add
                                     </button>
-                                {/each}
-                                <button
-                                    type="button"
-                                    class="inline-flex items-center gap-x-1.5 py-1 px-2 rounded-full text-xs font-medium bg-blue-100 text-blue-800 hover:bg-blue-200 dark:bg-blue-900 dark:text-blue-200 dark:hover:bg-blue-800"
-                                    onclick={() => handleEditSubcategory(category.id)}
-                                >
-                                    <svg class="size-3" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
-                                    Add
-                                </button>
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
-            {/each}
-        </div>
+                {/each}
+            </div>
+        {/if}
     </div>
 
     <!-- Delete Confirmation Modal -->
