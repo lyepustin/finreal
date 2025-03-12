@@ -48,6 +48,54 @@ export const load = async ({ locals: { supabase } }) => {
 };
 
 export const actions: Actions = {
+    createRule: async ({ request, locals: { supabase } }) => {
+        const {
+            data: { session },
+        } = await supabase.auth.getSession();
+
+        if (!session) {
+            return fail(401, {
+                error: { message: 'Unauthorized' }
+            });
+        }
+
+        const formData = await request.formData();
+        const pattern = formData.get('pattern');
+        const category_id = formData.get('category_id');
+        const subcategory_id = formData.get('subcategory_id');
+
+        if (!pattern || !category_id) {
+            return fail(400, {
+                error: { message: 'Pattern and category are required' }
+            });
+        }
+
+        try {
+            // Create new rule
+            const { error: createError } = await supabase
+                .from('transaction_rules')
+                .insert({
+                    pattern: pattern.toString(),
+                    category_id: Number(category_id),
+                    subcategory_id: subcategory_id ? Number(subcategory_id) : null,
+                    user_id: session.user.id
+                });
+
+            if (createError) throw createError;
+
+            // Fetch updated rules list
+            const { data: rules, error: rulesError } = await getRulesQuery(supabase);
+            if (rulesError) throw rulesError;
+
+            return { rules };
+        } catch (err) {
+            console.error('Error creating rule:', err);
+            return fail(500, {
+                error: { message: 'Failed to create rule' }
+            });
+        }
+    },
+
     upsertRule: async ({ request, locals: { supabase } }) => {
         const {
             data: { session },
@@ -65,36 +113,35 @@ export const actions: Actions = {
         const category_id = formData.get('category_id');
         const subcategory_id = formData.get('subcategory_id');
 
-        if (!pattern || !category_id) {
+        if (!id || !pattern || !category_id) {
             return fail(400, {
-                error: { message: 'Pattern and category are required' }
+                error: { message: 'ID, pattern, and category are required for updates' }
             });
         }
 
         try {
-            // First, upsert the rule
-            const { error: upsertError } = await supabase
+            // Update existing rule
+            const { error: updateError } = await supabase
                 .from('transaction_rules')
-                .upsert({
-                    id: id ? Number(id) : undefined,
+                .update({
                     pattern: pattern.toString(),
                     category_id: Number(category_id),
                     subcategory_id: subcategory_id ? Number(subcategory_id) : null,
                     user_id: session.user.id
-                });
+                })
+                .eq('id', Number(id));
 
-            if (upsertError) throw upsertError;
+            if (updateError) throw updateError;
 
-            // Then fetch the complete rules list with relationships
+            // Fetch updated rules list
             const { data: rules, error: rulesError } = await getRulesQuery(supabase);
-
             if (rulesError) throw rulesError;
 
             return { rules };
         } catch (err) {
-            console.error('Error saving rule:', err);
+            console.error('Error updating rule:', err);
             return fail(500, {
-                error: { message: 'Failed to save rule' }
+                error: { message: 'Failed to update rule' }
             });
         }
     },

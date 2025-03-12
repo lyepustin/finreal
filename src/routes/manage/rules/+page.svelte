@@ -147,7 +147,6 @@
         const defaultSubcategory = defaultCategory?.subcategories?.[0];
 
         editingRule = rule ? { ...rule } : {
-            id: 0,
             pattern: '',
             category_id: defaultCategory?.id || categories[0]?.id || 0,
             subcategory_id: defaultSubcategory?.id || null,
@@ -495,7 +494,7 @@
         <form 
             id="rule-form"
             method="POST"
-            action="?/upsertRule"
+            action={editingRule.id ? "?/upsertRule" : "?/createRule"}
             use:enhance={handleSubmit}
             class="p-4 sm:p-6"
         >
