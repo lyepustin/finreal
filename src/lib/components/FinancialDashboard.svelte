@@ -501,36 +501,37 @@
             <div class="summary-stats mb-3">
                 <div class="grid grid-cols-3 gap-1.5">
                     <!-- Income Card -->
-                    <div class="stat-card flex flex-col">
+                    <div class="stat-card flex flex-col items-center justify-center text-center">
                         <span class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-0.5">Income</span>
                         <div class="flex items-center space-x-1">
                             <div class="w-1 h-1 rounded-full bg-blue-500"></div>
-                            <span class="text-base font-semibold tracking-tight text-gray-900 dark:text-gray-100">
+                            <span class="text-base text-lg font-semibold tracking-tight text-gray-900 dark:text-gray-100">
                                 {formatEuro(selectedBarData.income)}
                             </span>
                         </div>
                     </div>
+
                     
                     <!-- Expenses Card -->
-                    <div class="stat-card flex flex-col">
+                    <div class="stat-card flex flex-col items-center justify-center text-center">
                         <span class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-0.5">Expenses</span>
                         <div class="flex items-center space-x-1">
                             <div class="w-1 h-1 rounded-full bg-red-500"></div>
-                            <span class="text-base font-semibold tracking-tight text-gray-900 dark:text-gray-100">
+                            <span class="text-base text-lg font-semibold tracking-tight text-gray-900 dark:text-gray-100">
                                 {formatEuro(selectedBarData.expenses)}
                             </span>
                         </div>
                     </div>
                     
                     <!-- Net Card -->
-                    <div class="stat-card flex flex-col">
+                    <div class="stat-card flex flex-col items-center justify-center text-center">
                         <span class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-0.5">Net</span>
                         <div class="flex items-center space-x-1">
                             <div class="w-1 h-1 rounded-full" 
                                  class:bg-green-500={selectedBarData.net > 0} 
                                  class:bg-red-500={selectedBarData.net < 0} 
                                  class:bg-gray-500={selectedBarData.net === 0}></div>
-                            <span class="text-base font-semibold tracking-tight" 
+                            <span class="text-base text-lg font-semibold tracking-tight" 
                                   class:text-green-600={selectedBarData.net > 0} 
                                   class:text-red-600={selectedBarData.net < 0}
                                   class:text-gray-600={selectedBarData.net === 0}
