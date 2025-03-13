@@ -37,9 +37,10 @@ export async function updateTransactionCategories(
         });
 
         if (!response.ok) {
-            const errorText = await response.text();
-            console.error('Error updating transaction categories:', errorText);
-            throw new Error('Failed to update transaction categories');
+            const errorData = await response.json().catch(() => null);
+            const errorMessage = errorData?.message || await response.text() || response.statusText;
+            console.error('Error updating transaction categories:', errorMessage);
+            throw new Error(errorMessage);
         }
     } catch (err) {
         console.error('Error updating transaction categories:', err);
@@ -57,15 +58,17 @@ export async function updateTransactionDescription(
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ description: userDescription })
+            body: JSON.stringify({ user_description: userDescription })
         });
 
         if (!response.ok) {
-            console.error('Error updating transaction description:', response.statusText);
-            throw error(500, 'Failed to update transaction description');
+            const errorData = await response.json().catch(() => null);
+            const errorMessage = errorData?.message || await response.text() || response.statusText;
+            console.error('Error updating transaction description:', errorMessage);
+            throw new Error(errorMessage);
         }
     } catch (err) {
         console.error('Error updating transaction description:', err);
-        throw error(500, 'Failed to update transaction description');
+        throw error(500, err instanceof Error ? err.message : 'Failed to update transaction description');
     }
 } 

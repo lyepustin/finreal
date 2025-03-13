@@ -415,6 +415,21 @@ WITH CHECK (
     )
 );
 
+DROP POLICY IF EXISTS "Users can delete their own transaction categories" ON transaction_categories;
+CREATE POLICY "Users can delete their own transaction categories"
+ON transaction_categories
+FOR DELETE
+USING (
+    EXISTS (
+        SELECT 1 
+        FROM transactions t
+        JOIN accounts a ON a.id = t.account_id
+        JOIN banks b ON b.id = a.bank_id
+        WHERE t.id = transaction_categories.transaction_id 
+        AND b.user_id = auth.uid()
+    )
+);
+
 -- =====================
 -- Transaction Rules
 -- =====================
