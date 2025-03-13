@@ -80,33 +80,33 @@
     );
 </script>
 
-<div class="financial-dashboard">
+<div class="account-dashboard">
     <div class="relative overflow-hidden">
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-2">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-1">
             {#if loading}
-                <div class="flex items-center justify-center h-[50px]">
-                    <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500"></div>
+                <div class="flex items-center justify-center h-[40px]">
+                    <div class="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500"></div>
                 </div>
             {:else if error}
-                <div class="text-red-500 text-center h-[50px] flex items-center justify-center">
+                <div class="text-red-500 text-center h-[40px] flex items-center justify-center">
                     {error}
                 </div>
             {:else}
-                <div class="relative flex items-center justify-between h-[50px]">
+                <div class="relative flex items-center justify-between h-[40px]">
                     <!-- Left Arrow -->
                     <button 
-                        class="absolute left-0 p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors z-10"
+                        class="absolute left-0 p-0.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors z-10"
                         onclick={goLeft}
                         aria-label="Previous balance"
                     >
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
                         </svg>
                     </button>
 
                     <!-- Content with fixed height container -->
-                    <div class="flex-1 mx-8 overflow-hidden">
-                        <div class="relative h-[40px]">
+                    <div class="flex-1 mx-6 overflow-hidden">
+                        <div class="relative h-[35px]">
                             {#key currentIndex}
                                 <div 
                                     class="absolute inset-0 flex flex-col items-center justify-center"
@@ -114,14 +114,14 @@
                                     out:fly={{ x: direction * -100, duration: 300 }}
                                 >
                                     <!-- Balance -->
-                                    <div class="text-xl font-bold text-gray-800 dark:text-gray-200" 
+                                    <div class="text-xl font-bold text-gray-800 dark:text-gray-200 leading-none mb-0.5" 
                                          class:text-red-600={currentDisplay.value < 0} 
                                          class:dark:text-red-400={currentDisplay.value < 0}>
                                         {formatEuro(currentDisplay.value)}
                                     </div>
 
                                     <!-- Subtitle -->
-                                    <div class="text-xs text-gray-500 dark:text-gray-400">
+                                    <div class="text-[10px] text-gray-500 dark:text-gray-400 leading-none">
                                         {currentDisplay.subtitle.toUpperCase()}
                                     </div>
                                 </div>
@@ -131,18 +131,18 @@
 
                     <!-- Right Arrow -->
                     <button 
-                        class="absolute right-0 p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors z-10"
+                        class="absolute right-0 p-0.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors z-10"
                         onclick={goRight}
                         aria-label="Next balance"
                     >
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
                         </svg>
                     </button>
                 </div>
 
                 <!-- Navigation Dots -->
-                <div class="flex justify-center gap-1 mt-1 h-[4px]">
+                <div class="flex justify-center gap-0.5 h-[3px] -mt-0.5">
                     <button 
                         class="w-1 h-1 rounded-full transition-colors"
                         class:bg-blue-600={currentIndex === -1}
@@ -176,15 +176,14 @@
 </div>
 
 <style>
-    .financial-dashboard {
+    .account-dashboard {
         max-width: 400px;
         margin: 0 auto;
         height: auto;
-        min-height: 90px;
     }
 
     /* Prevent layout shifts */
-    :global(.financial-dashboard) {
+    :global(.account-dashboard) {
         contain: layout;
     }
 </style> 

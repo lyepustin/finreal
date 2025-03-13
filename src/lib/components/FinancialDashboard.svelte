@@ -418,28 +418,32 @@
 
 <div class="financial-dashboard">
     <div>
-        <div class="flex justify-between items-center mb-4">
-            <h2 class="text-2xl font-bold text-gray-800 dark:text-gray-200">Analysis</h2>
-            
+        <!-- Combined Date Range and Period Selector -->
+        <div class="flex justify-between items-center mb-3">
+            <!-- Date Range Display -->
+            <div class="text-sm text-gray-600 dark:text-gray-400">
+                {getDateRangeText()}
+            </div>
+
             <!-- Period Dropdown -->
             <div class="relative">
                 <button id="dropdownDefaultButton" 
-                    class="text-white bg-blue-600 hover:bg-blue-700 focus:ring-4 focus:outline-none focus:ring-blue-300 font-medium rounded-full text-sm px-5 py-2.5 text-center inline-flex items-center dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800" 
+                    class="text-white bg-blue-600 hover:bg-blue-700 focus:ring-4 focus:outline-none focus:ring-blue-300 font-medium rounded-full text-xs px-3 py-1.5 text-center inline-flex items-center dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800" 
                     type="button"
                     onclick={() => toggleDropdown()}>
                     {selectedPeriod.charAt(0).toUpperCase() + selectedPeriod.slice(1)}
-                    <svg class="w-2.5 h-2.5 ms-3" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 10 6">
+                    <svg class="w-2 h-2 ms-2" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 10 6">
                         <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 1 4 4 4-4"/>
                     </svg>
                 </button>
                 
                 <!-- Dropdown menu -->
                 {#if isDropdownOpen}
-                <div id="dropdown" class="z-10 absolute right-0 mt-2 bg-white divide-y divide-gray-100 rounded-lg shadow w-44 dark:bg-gray-700">
-                    <ul class="py-2 text-sm text-gray-700 dark:text-gray-200" aria-labelledby="dropdownDefaultButton">
+                <div id="dropdown" class="z-10 absolute right-0 mt-1 bg-white divide-y divide-gray-100 rounded-lg shadow w-32 dark:bg-gray-700">
+                    <ul class="py-1 text-xs text-gray-700 dark:text-gray-200" aria-labelledby="dropdownDefaultButton">
                         {#each ['month', 'year'] as period}
                             <li>
-                                <button onclick={() => handlePeriodChange(period)} class="block w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-600 dark:hover:text-white">
+                                <button onclick={() => handlePeriodChange(period)} class="block w-full text-left px-3 py-1 hover:bg-gray-100 dark:hover:bg-gray-600 dark:hover:text-white">
                                     {period.charAt(0).toUpperCase() + period.slice(1)}
                                 </button>
                             </li>
@@ -452,38 +456,33 @@
 
         {#if isLoading}
             <!-- Loading Spinner -->
-            <div class="flex justify-center items-center p-20">
-                <div class="animate-spin inline-block size-8 border-[3px] border-current border-t-transparent text-blue-600 rounded-full dark:text-blue-500" role="status" aria-label="loading">
+            <div class="flex justify-center items-center p-12">
+                <div class="animate-spin inline-block size-6 border-[2px] border-current border-t-transparent text-blue-600 rounded-full dark:text-blue-500" role="status" aria-label="loading">
                     <span class="sr-only">Loading...</span>
                 </div>
             </div>
         {:else if error}
             <!-- Error Message -->
-            <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative dark:bg-red-900 dark:border-red-800 dark:text-red-200 mb-6">
+            <div class="bg-red-100 border border-red-400 text-red-700 px-3 py-2 rounded relative dark:bg-red-900 dark:border-red-800 dark:text-red-200 mb-4 text-sm">
                 <strong class="font-bold">Error!</strong>
                 <span class="block sm:inline"> {error}</span>
             </div>
         {:else if chartData.length === 0}
             <!-- No Data Message -->
-            <div class="flex flex-col items-center justify-center p-8 text-center bg-white border border-gray-200 rounded-xl shadow-sm dark:bg-slate-900 dark:border-gray-700 mb-6">
-                <svg class="size-16 text-gray-300 dark:text-gray-600 mb-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg>
-                <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-200">No data available</h3>
-                <p class="text-gray-500 mt-1">Try adjusting your filters or adding new transactions</p>
+            <div class="flex flex-col items-center justify-center p-6 text-center bg-white border border-gray-200 rounded-xl shadow-sm dark:bg-slate-900 dark:border-gray-700 mb-4">
+                <svg class="size-12 text-gray-300 dark:text-gray-600 mb-3" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg>
+                <h3 class="text-base font-semibold text-gray-800 dark:text-gray-200">No data available</h3>
+                <p class="text-sm text-gray-500 mt-0.5">Try adjusting your filters or adding new transactions</p>
             </div>
         {:else}
-            <!-- Date Range Display -->
-            <div class="text-gray-600 dark:text-gray-400 mb-4">
-                {getDateRangeText()}
-            </div>
-
             <!-- Chart Container -->
-            <div class="chart-container bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 mb-6 relative" bind:this={chartContainer}>
+            <div class="chart-container bg-white dark:bg-gray-800 rounded-xl shadow-sm p-3 mb-3 relative" bind:this={chartContainer}>
                 <!-- Navigation Buttons -->
                 <button 
                     class="navigation-button left-2"
                     onclick={() => navigateBack()}
                     aria-label="View previous periods">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
                     </svg>
                 </button>
@@ -491,7 +490,7 @@
                     class="navigation-button right-2 {currentOffset === 0 ? 'invisible' : ''}"
                     onclick={() => navigateForward()}
                     aria-label="View next periods">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
                     </svg>
                 </button>
@@ -499,14 +498,14 @@
             </div>
 
             <!-- Summary Stats -->
-            <div class="summary-stats mb-6">
-                <div class="grid grid-cols-3 gap-2 sm:gap-3">
+            <div class="summary-stats mb-3">
+                <div class="grid grid-cols-3 gap-1.5">
                     <!-- Income Card -->
                     <div class="stat-card flex flex-col">
-                        <span class="text-xs sm:text-sm font-medium text-gray-500 dark:text-gray-400 mb-0.5 sm:mb-1">Income</span>
-                        <div class="flex items-center space-x-1.5 sm:space-x-2">
-                            <div class="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-blue-500"></div>
-                            <span class="text-lg sm:text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-100">
+                        <span class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-0.5">Income</span>
+                        <div class="flex items-center space-x-1">
+                            <div class="w-1 h-1 rounded-full bg-blue-500"></div>
+                            <span class="text-base font-semibold tracking-tight text-gray-900 dark:text-gray-100">
                                 {formatEuro(selectedBarData.income)}
                             </span>
                         </div>
@@ -514,10 +513,10 @@
                     
                     <!-- Expenses Card -->
                     <div class="stat-card flex flex-col">
-                        <span class="text-xs sm:text-sm font-medium text-gray-500 dark:text-gray-400 mb-0.5 sm:mb-1">Expenses</span>
-                        <div class="flex items-center space-x-1.5 sm:space-x-2">
-                            <div class="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-red-500"></div>
-                            <span class="text-lg sm:text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-100">
+                        <span class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-0.5">Expenses</span>
+                        <div class="flex items-center space-x-1">
+                            <div class="w-1 h-1 rounded-full bg-red-500"></div>
+                            <span class="text-base font-semibold tracking-tight text-gray-900 dark:text-gray-100">
                                 {formatEuro(selectedBarData.expenses)}
                             </span>
                         </div>
@@ -525,13 +524,13 @@
                     
                     <!-- Net Card -->
                     <div class="stat-card flex flex-col">
-                        <span class="text-xs sm:text-sm font-medium text-gray-500 dark:text-gray-400 mb-0.5 sm:mb-1">Net</span>
-                        <div class="flex items-center space-x-1.5 sm:space-x-2">
-                            <div class="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full" 
+                        <span class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-0.5">Net</span>
+                        <div class="flex items-center space-x-1">
+                            <div class="w-1 h-1 rounded-full" 
                                  class:bg-green-500={selectedBarData.net > 0} 
                                  class:bg-red-500={selectedBarData.net < 0} 
                                  class:bg-gray-500={selectedBarData.net === 0}></div>
-                            <span class="text-lg sm:text-2xl font-semibold tracking-tight" 
+                            <span class="text-base font-semibold tracking-tight" 
                                   class:text-green-600={selectedBarData.net > 0} 
                                   class:text-red-600={selectedBarData.net < 0}
                                   class:text-gray-600={selectedBarData.net === 0}
@@ -557,28 +556,28 @@
     .financial-dashboard {
         max-width: 1200px;
         margin: 0 auto;
-        padding: 1rem;
+        padding: 0.5rem;
     }
     
     .chart-container {
-        height: 200px;
+        height: 160px;
         width: 100%;
-        margin-bottom: 1rem;
+        margin-bottom: 0.75rem;
     }
     
     .stat-card {
         background-color: rgba(255, 255, 255, 0.8);
         backdrop-filter: blur(10px);
         -webkit-backdrop-filter: blur(10px);
-        border-radius: 1rem;
-        padding: 1rem;
+        border-radius: 0.75rem;
+        padding: 0.5rem;
         border: 1px solid rgba(229, 231, 235, 0.5);
         transition: all 0.2s ease-in-out;
     }
     
     .stat-card:hover {
         transform: translateY(-1px);
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.1);
     }
     
     /* Dark mode support */
@@ -593,7 +592,7 @@
         transform: translateY(-50%);
         background-color: rgba(255, 255, 255, 0.8);
         color: #4B5563;
-        padding: 0.375rem;
+        padding: 0.25rem;
         border-radius: 9999px;
         cursor: pointer;
         transition: all 0.2s ease-in-out;
@@ -623,12 +622,12 @@
 
     @media (max-width: 640px) {
         .stat-card {
-            padding: 0.75rem;
+            padding: 0.5rem;
             font-size: 0.875rem;
         }
         
         .chart-container {
-            height: 180px;
+            height: 140px;
         }
     }
 </style>

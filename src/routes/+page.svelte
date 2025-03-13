@@ -17,7 +17,7 @@
 </div>
 
 <!-- Financial Dashboard Section -->
-<div class="mt-2">
+<div class="mt-1">
   <FinancialDashboard />
 </div>
 
