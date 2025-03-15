@@ -1,12 +1,29 @@
-import { rules } from '$lib/stores/rules';
 import { error, fail } from '@sveltejs/kit';
 import type { Actions } from './$types';
-import { supabase } from '$lib/db/supabase';
 
-export const load = async () => {
+// Helper function to get the full rules query
+const getRulesQuery = (supabase) => {
+    return supabase
+        .from('transaction_rules')
+        .select(`
+            id,
+            pattern,
+            category_id,
+            subcategory_id,
+            category:categories(
+                id, 
+                name, 
+                subcategories:subcategories(id, name)
+            ),
+            subcategory:subcategories(id, name)
+        `)
+        .order('id');
+};
+
+export const load = async ({ locals: { supabase } }) => {
     try {
-        const [rulesList, { data: categories, error: categoriesError }] = await Promise.all([
-            rules.getRules(),
+        const [{ data: rules, error: rulesError }, { data: categories, error: categoriesError }] = await Promise.all([
+            getRulesQuery(supabase),
             supabase
                 .from('categories')
                 .select(`
@@ -20,20 +37,29 @@ export const load = async () => {
                 .order('name')
         ]);
 
-        if (categoriesError) {
-            throw new Error('Failed to fetch categories');
-        }
+        if (rulesError) throw new Error('Failed to fetch rules');
+        if (categoriesError) throw new Error('Failed to fetch categories');
 
-        return { rules: rulesList, categories };
+        return { rules, categories };
     } catch (e) {
+        console.error('Error loading data:', e);
         throw error(500, 'Failed to load rules data');
     }
 };
 
 export const actions: Actions = {
-    upsertRule: async ({ request }) => {
+    createRule: async ({ request, locals: { supabase } }) => {
+        const {
+            data: { session },
+        } = await supabase.auth.getSession();
+
+        if (!session) {
+            return fail(401, {
+                error: { message: 'Unauthorized' }
+            });
+        }
+
         const formData = await request.formData();
-        const id = formData.get('id');
         const pattern = formData.get('pattern');
         const category_id = formData.get('category_id');
         const subcategory_id = formData.get('subcategory_id');
@@ -45,22 +71,82 @@ export const actions: Actions = {
         }
 
         try {
-            await rules.upsertRule({
-                id: id ? Number(id) : undefined,
-                pattern: pattern.toString(),
-                category_id: Number(category_id),
-                subcategory_id: subcategory_id ? Number(subcategory_id) : null
-            });
+            // Create new rule
+            const { error: createError } = await supabase
+                .from('transaction_rules')
+                .insert({
+                    pattern: pattern.toString(),
+                    category_id: Number(category_id),
+                    subcategory_id: subcategory_id ? Number(subcategory_id) : null,
+                    user_id: session.user.id
+                });
 
-            return { rules: await rules.getRules() };
-        } catch (e) {
+            if (createError) throw createError;
+
+            // Fetch updated rules list
+            const { data: rules, error: rulesError } = await getRulesQuery(supabase);
+            if (rulesError) throw rulesError;
+
+            return { rules };
+        } catch (err) {
+            console.error('Error creating rule:', err);
             return fail(500, {
-                error: { message: 'Failed to save rule' }
+                error: { message: 'Failed to create rule' }
             });
         }
     },
 
-    deleteRule: async ({ request }) => {
+    upsertRule: async ({ request, locals: { supabase } }) => {
+        const {
+            data: { session },
+        } = await supabase.auth.getSession();
+
+        if (!session) {
+            return fail(401, {
+                error: { message: 'Unauthorized' }
+            });
+        }
+
+        const formData = await request.formData();
+        const id = formData.get('id');
+        const pattern = formData.get('pattern');
+        const category_id = formData.get('category_id');
+        const subcategory_id = formData.get('subcategory_id');
+
+        if (!id || !pattern || !category_id) {
+            return fail(400, {
+                error: { message: 'ID, pattern, and category are required for updates' }
+            });
+        }
+
+        try {
+            // Update existing rule
+            const { error: updateError } = await supabase
+                .from('transaction_rules')
+                .update({
+                    pattern: pattern.toString(),
+                    category_id: Number(category_id),
+                    subcategory_id: subcategory_id ? Number(subcategory_id) : null,
+                    user_id: session.user.id
+                })
+                .eq('id', Number(id));
+
+            if (updateError) throw updateError;
+
+            // Fetch updated rules list
+            const { data: rules, error: rulesError } = await getRulesQuery(supabase);
+            if (rulesError) throw rulesError;
+
+            return { rules };
+        } catch (err) {
+            console.error('Error updating rule:', err);
+            return fail(500, {
+                error: { message: 'Failed to update rule' }
+            });
+        }
+    },
+
+    deleteRule: async ({ request, locals: { supabase } }) => {
         const formData = await request.formData();
         const id = formData.get('id');
 
@@ -71,16 +157,28 @@ export const actions: Actions = {
         }
 
         try {
-            await rules.deleteRule(Number(id));
-            return { rules: await rules.getRules() };
-        } catch (e) {
+            const { error: deleteError } = await supabase
+                .from('transaction_rules')
+                .delete()
+                .eq('id', Number(id));
+
+            if (deleteError) throw deleteError;
+
+            // Fetch updated rules list with relationships
+            const { data: rules, error: rulesError } = await getRulesQuery(supabase);
+
+            if (rulesError) throw rulesError;
+
+            return { rules };
+        } catch (err) {
+            console.error('Error deleting rule:', err);
             return fail(500, {
                 error: { message: 'Failed to delete rule' }
             });
         }
     },
 
-    applyRule: async ({ request }) => {
+    applyRule: async ({ request, locals: { supabase } }) => {
         const formData = await request.formData();
         const ruleId = formData.get('id');
 
@@ -95,28 +193,13 @@ export const actions: Actions = {
 
             if (dbError) throw dbError;
 
-            // Get updated rules list
-            const { data: rules, error: rulesError } = await supabase
-                .from('transaction_rules')
-                .select(`
-                    id,
-                    pattern,
-                    category_id,
-                    subcategory_id,
-                    category:categories(
-                        id, 
-                        name, 
-                        subcategories:subcategories(id, name)
-                    ),
-                    subcategory:subcategories(id, name)
-                `)
-                .order('id');
+            // Get updated rules list with relationships
+            const { data: rules, error: rulesError } = await getRulesQuery(supabase);
 
             if (rulesError) throw rulesError;
 
             // Extract affected_count directly from the first result
             const affectedCount = rpcResult?.[0]?.affected_count;
-            console.log('RPC Result:', rpcResult, 'Affected Count:', affectedCount);
 
             return {
                 rules,

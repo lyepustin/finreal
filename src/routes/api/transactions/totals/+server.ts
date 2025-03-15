@@ -1,6 +1,5 @@
 import { json } from '@sveltejs/kit';
-import { supabase } from '$lib/db/supabase';
-import type { RequestHandler } from './$types';
+import type { RequestHandler } from '@sveltejs/kit';
 import { measureAsync } from '$lib/utils/performance';
 
 interface TotalsResult {
@@ -9,7 +8,7 @@ interface TotalsResult {
     net_amount: number;
 }
 
-export const GET: RequestHandler = async ({ url }) => {
+export const GET: RequestHandler = async ({ locals: { supabase }, url }) => {
     return await measureAsync('get_transactions_totals', async () => {
         try {
             // Get filter parameters from URL

@@ -11,33 +11,33 @@ BEGIN
     WHERE id = rule_id;
 
     IF NOT FOUND THEN
+        RAISE NOTICE 'Rule with ID % not found', rule_id;
         RETURN QUERY SELECT 0::INTEGER;
         RETURN;
     END IF;
 
-    -- Simply update or insert categories for matching transactions
-    WITH upsert_result AS (
-        INSERT INTO public.transaction_categories (
-            transaction_id,
-            category_id,
-            subcategory_id,
-            amount
-        )
-        SELECT 
-            t.id,
-            rule_record.category_id,
-            rule_record.subcategory_id,
-            tc.amount
+    RAISE NOTICE 'Applying rule: pattern=%, category_id=%, subcategory_id=%', 
+        rule_record.pattern, rule_record.category_id, rule_record.subcategory_id;
+
+    -- Update existing transaction categories where transaction description matches
+    WITH matching_transactions AS (
+        SELECT t.id
         FROM public.transactions t
-        LEFT JOIN public.transaction_categories tc ON t.id = tc.transaction_id
         WHERE t.description ILIKE '%' || rule_record.pattern || '%'
-        ON CONFLICT (transaction_id) 
-        DO UPDATE SET
+        OR t.user_description ILIKE '%' || rule_record.pattern || '%'
+    ),
+    update_result AS (
+        UPDATE public.transaction_categories tc
+        SET 
             category_id = rule_record.category_id,
             subcategory_id = rule_record.subcategory_id
+        FROM matching_transactions mt
+        WHERE tc.transaction_id = mt.id
         RETURNING 1
     )
-    SELECT COUNT(*) INTO affected FROM upsert_result;
+    SELECT COUNT(*) INTO affected FROM update_result;
+
+    RAISE NOTICE 'Rule application complete. Affected rows: %', affected;
 
     -- Return the actual number of affected rows
     RETURN QUERY SELECT affected;

@@ -1,23 +1,10 @@
 import type { PageServerLoad, Actions } from './$types';
 import { error, fail } from '@sveltejs/kit';
-import { supabase } from '$lib/db/supabase';
 
-export const load: PageServerLoad = async () => {
+export const load: PageServerLoad = async ({ locals: { supabase } }) => {
     try {
         const { data: categories, error: categoriesError } = await supabase
-            .from('categories')
-            .select(`
-                id,
-                name,
-                subcategories (
-                    id,
-                    name
-                ),
-                transaction_categories:transaction_categories (
-                    id
-                )
-            `)
-            .order('name');
+            .rpc('get_categories_with_subcategories');
 
         if (categoriesError) {
             throw error(500, 'Failed to fetch categories');
@@ -31,7 +18,7 @@ export const load: PageServerLoad = async () => {
 };
 
 export const actions: Actions = {
-    upsertCategory: async ({ request }) => {
+    upsertCategory: async ({ request, locals: { supabase } }) => {
         const formData = await request.formData();
         const id = formData.get('id');
         const name = formData.get('name')?.toString().trim();
@@ -41,11 +28,22 @@ export const actions: Actions = {
         }
 
         try {
+            const {
+                data: { session },
+            } = await supabase.auth.getSession();
+
+            if (!session) {
+                return fail(401, { error: 'Unauthorized' });
+            }
+
             if (id === '0') {
-                // Insert new category
+                // Insert new category with user_id
                 const { error: insertError } = await supabase
                     .from('categories')
-                    .insert({ name });
+                    .insert({ 
+                        name,
+                        user_id: session.user.id 
+                    });
 
                 if (insertError) throw insertError;
             } else {
@@ -58,21 +56,9 @@ export const actions: Actions = {
                 if (updateError) throw updateError;
             }
 
-            // Fetch updated categories
+            // Fetch updated categories using RPC
             const { data: categories, error: fetchError } = await supabase
-                .from('categories')
-                .select(`
-                    id,
-                    name,
-                    subcategories (
-                        id,
-                        name
-                    ),
-                    transaction_categories:transaction_categories (
-                        id
-                    )
-                `)
-                .order('name');
+                .rpc('get_categories_with_subcategories');
 
             if (fetchError) throw fetchError;
 
@@ -83,7 +69,7 @@ export const actions: Actions = {
         }
     },
 
-    upsertSubcategory: async ({ request }) => {
+    upsertSubcategory: async ({ request, locals: { supabase } }) => {
         const formData = await request.formData();
         const id = formData.get('id');
         const categoryId = formData.get('categoryId');
@@ -114,21 +100,9 @@ export const actions: Actions = {
                 if (updateError) throw updateError;
             }
 
-            // Fetch updated categories
+            // Fetch updated categories using RPC
             const { data: categories, error: fetchError } = await supabase
-                .from('categories')
-                .select(`
-                    id,
-                    name,
-                    subcategories (
-                        id,
-                        name
-                    ),
-                    transaction_categories:transaction_categories (
-                        id
-                    )
-                `)
-                .order('name');
+                .rpc('get_categories_with_subcategories');
 
             if (fetchError) throw fetchError;
 
@@ -139,7 +113,7 @@ export const actions: Actions = {
         }
     },
 
-    deleteCategory: async ({ request }) => {
+    deleteCategory: async ({ request, locals: { supabase } }) => {
         const formData = await request.formData();
         const id = formData.get('id');
 
@@ -181,21 +155,9 @@ export const actions: Actions = {
 
             if (deleteError) throw deleteError;
 
-            // Fetch updated categories
+            // Fetch updated categories using RPC
             const { data: categories, error: fetchError } = await supabase
-                .from('categories')
-                .select(`
-                    id,
-                    name,
-                    subcategories (
-                        id,
-                        name
-                    ),
-                    transaction_categories:transaction_categories (
-                        id
-                    )
-                `)
-                .order('name');
+                .rpc('get_categories_with_subcategories');
 
             if (fetchError) throw fetchError;
 
@@ -206,7 +168,7 @@ export const actions: Actions = {
         }
     },
 
-    deleteSubcategory: async ({ request }) => {
+    deleteSubcategory: async ({ request, locals: { supabase } }) => {
         const formData = await request.formData();
         const id = formData.get('id');
 
@@ -236,21 +198,9 @@ export const actions: Actions = {
 
             if (deleteError) throw deleteError;
 
-            // Fetch updated categories
+            // Fetch updated categories using RPC
             const { data: categories, error: fetchError } = await supabase
-                .from('categories')
-                .select(`
-                    id,
-                    name,
-                    subcategories (
-                        id,
-                        name
-                    ),
-                    transaction_categories:transaction_categories (
-                        id
-                    )
-                `)
-                .order('name');
+                .rpc('get_categories_with_subcategories');
 
             if (fetchError) throw fetchError;
 
@@ -260,4 +210,4 @@ export const actions: Actions = {
             return fail(500, { error: 'Failed to delete subcategory' });
         }
     }
-}; 
+};

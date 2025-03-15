@@ -1,7 +1,7 @@
 import { json } from '@sveltejs/kit';
-import { supabase } from '$lib/db/supabase';
+import type { RequestHandler } from '@sveltejs/kit';
 
-export async function GET() {
+export const GET: RequestHandler = async ({ locals: { supabase } }) => {
     try {
         const { data, error } = await supabase
             .rpc('get_category_transaction_counts');

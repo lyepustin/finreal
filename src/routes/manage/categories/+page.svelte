@@ -7,6 +7,7 @@
     let { data } = $props<{ data: PageData }>();
     let categories = $state(data.categories);
     let isLoading = $state(false);
+    let isLoadingCategories = $state(true);
     let editingCategory = $state<Category | null>(null);
     let editingSubcategory = $state<{ categoryId: number, subcategory: SubCategory | null }>(null);
     let deleteConfirmationOpen = $state(false);
@@ -141,6 +142,7 @@
     // Fetch transaction counts on mount
     onMount(async () => {
         try {
+            isLoadingCategories = true;
             const response = await fetch('/api/category-transaction-counts');
             const data = await response.json();
             
@@ -158,29 +160,38 @@
             }
         } catch (error) {
             console.error('Error fetching transaction counts:', error);
+            showToast('error', 'Failed to load category transaction counts');
+        } finally {
+            isLoadingCategories = false;
         }
     });
 </script>
 
 <div class="space-y-8">
     <!-- Categories Section -->
-    <div class="bg-white border border-gray-200 rounded-xl shadow-sm dark:bg-slate-900 dark:border-gray-700">
-        <div class="p-4 md:p-5">
-            <div class="flex justify-between items-center mb-6">
-                <h2 class="text-xl font-semibold text-gray-800 dark:text-gray-200">
-                    Categories
-                </h2>
-                <button
-                    type="button"
-                    class="py-2 px-3 inline-flex items-center gap-x-2 text-sm font-semibold rounded-lg border border-transparent bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:pointer-events-none dark:focus:outline-none dark:focus:ring-1 dark:focus:ring-gray-600"
-                    onclick={() => handleEditCategory({ id: 0, name: '', subcategories: [] })}
-                >
-                    <svg class="flex-shrink-0 size-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
-                    Add Category
-                </button>
-            </div>
+    <div class="p-4 md:p-5">
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-xl font-semibold text-gray-800 dark:text-gray-200">
+                Categories
+            </h2>
+            <button
+                type="button"
+                class="py-2 px-3 inline-flex items-center gap-x-2 text-sm font-semibold rounded-lg border border-transparent bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:pointer-events-none dark:focus:outline-none dark:focus:ring-1 dark:focus:ring-gray-600"
+                onclick={() => handleEditCategory({ id: 0, name: '', subcategories: [] })}
+            >
+                <svg class="flex-shrink-0 size-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+                Add Category
+            </button>
+        </div>
 
-            <!-- Categories Grid -->
+        <!-- Categories Grid -->
+        {#if isLoadingCategories}
+            <div class="flex justify-center items-center py-12">
+                <div class="animate-spin inline-block size-8 border-[3px] border-current border-t-transparent text-blue-600 rounded-full dark:text-blue-500" role="status" aria-label="loading">
+                    <span class="sr-only">Loading...</span>
+                </div>
+            </div>
+        {:else}
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-4">
                 {#each getSortedCategories() as category}
                     <!-- Category Card -->
@@ -234,13 +245,13 @@
                     </div>
                 {/each}
             </div>
-        </div>
+        {/if}
     </div>
 
     <!-- Delete Confirmation Modal -->
     {#if deleteConfirmationOpen}
     <div 
-        class="fixed inset-0 z-[70] flex items-center justify-center p-0 sm:p-6 bg-transparent"
+        class="fixed inset-0 z-[80] flex items-center justify-center p-4 sm:p-6 bg-transparent"
         role="dialog"
         aria-modal="true"
         aria-labelledby="delete-modal-title"
@@ -255,7 +266,7 @@
         ></div>
 
         <!-- Modal Content -->
-        <div class="relative bg-white dark:bg-slate-900 w-full h-auto sm:h-auto sm:w-[500px] max-h-[calc(100vh-2rem)] flex flex-col overflow-hidden shadow-xl sm:rounded-2xl">
+        <div class="relative bg-white dark:bg-slate-900 w-[calc(100%-2rem)] sm:w-[500px] max-h-[calc(100vh-4rem)] flex flex-col overflow-hidden shadow-xl rounded-2xl">
             <div class="flex-none flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
                 <h2 id="delete-modal-title" class="text-lg font-semibold text-gray-900 dark:text-white">
                     Delete {itemToDelete?.type === 'category' ? 'Category' : 'Subcategory'}
@@ -309,21 +320,22 @@
     <!-- Edit Category/Subcategory Modal -->
     {#if editingCategory || editingSubcategory}
     <div 
-        class="fixed inset-0 z-[60] flex items-center justify-center p-0 sm:p-6 bg-transparent"
+        class="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6 bg-transparent"
         role="dialog"
         aria-modal="true"
+        aria-labelledby="edit-modal-title"
     >
         <!-- Backdrop -->
         <div 
             class="fixed inset-0 bg-black/50 backdrop-blur-sm" 
-            aria-hidden="true"
+            aria-hidden="true" 
             onclick={handleCancelEdit}
             onkeydown={(e) => e.key === 'Escape' && handleCancelEdit()}
             role="presentation"
         ></div>
 
         <!-- Modal Content -->
-        <div class="relative bg-white dark:bg-slate-900 w-full h-auto sm:h-auto sm:w-[500px] max-h-[calc(100vh-2rem)] flex flex-col overflow-hidden shadow-xl sm:rounded-2xl">
+        <div class="relative bg-white dark:bg-slate-900 w-[calc(100%-2rem)] sm:w-[500px] max-h-[calc(100vh-4rem)] flex flex-col overflow-hidden shadow-xl rounded-2xl">
             <form 
                 method="POST"
                 action={editingCategory ? "?/upsertCategory" : "?/upsertSubcategory"}
@@ -331,7 +343,7 @@
                 class="flex flex-col h-full"
             >
                 <div class="flex-none flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
-                    <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+                    <h2 id="edit-modal-title" class="text-lg font-semibold text-gray-900 dark:text-white">
                         {#if editingCategory}
                             {editingCategory.id ? 'Edit Category' : 'New Category'}
                         {:else if editingSubcategory}
@@ -374,16 +386,16 @@
                             type="text"
                             id="name"
                             name="name"
-                            class="py-3 px-4 block w-full border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500"
+                            class="py-3 px-4 block w-full border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-slate-800 dark:border-gray-700 dark:text-gray-400"
                             value={editingCategory ? editingCategory.name : editingSubcategory?.subcategory?.name ?? ''}
+                            placeholder={editingCategory ? 'food services 🍕' : 'restaurants'}
                             required
                             use:focusOnMount
                         />
                     </div>
-
                 </div>
 
-                <div class="flex-none p-4 sm:p-6 border-t border-gray-200 dark:border-gray-700">
+                <div class="flex-none p-4 sm:p-6 bg-gray-50 dark:bg-slate-800 border-t border-gray-200 dark:border-gray-700">
                     <div class="flex flex-col-reverse sm:flex-row justify-end gap-3">
                         <button
                             type="button"

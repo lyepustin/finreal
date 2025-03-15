@@ -46,6 +46,12 @@
         }
     });
 
+    // Focus action
+    function focusOnMount(node: HTMLElement) {
+        node.focus();
+        return {};
+    }
+
     function handleClickOutside(event: MouseEvent) {
         const target = event.target as HTMLElement;
         if (target.closest('.modal-content') === null) {
@@ -141,18 +147,17 @@
         selectedSubcategory = null;
     }
 
-    function handleEditRule(rule?: Rule) {
+    function handleEditRule(rule?: Rule, preselectedCategory?: { id: number, name: string }, preselectedSubcategory?: Category | null) {
         // Find first category with subcategories for default
         const defaultCategory = categories.find(c => c.subcategories?.length > 0);
         const defaultSubcategory = defaultCategory?.subcategories?.[0];
 
         editingRule = rule ? { ...rule } : {
-            id: 0,
             pattern: '',
-            category_id: defaultCategory?.id || categories[0]?.id || 0,
-            subcategory_id: defaultSubcategory?.id || null,
-            category: defaultCategory || categories[0] || null,
-            subcategory: defaultSubcategory || null
+            category_id: preselectedCategory?.id || defaultCategory?.id || categories[0]?.id || 0,
+            subcategory_id: preselectedSubcategory?.id || defaultSubcategory?.id || null,
+            category: preselectedCategory || defaultCategory || categories[0] || null,
+            subcategory: preselectedSubcategory || defaultSubcategory || null
         };
     }
 
@@ -189,10 +194,50 @@
             isLoading = false;
             
             if (result.type === 'success') {
-                handleCancelEdit();
                 if (result.data?.rules) {
                     rules = result.data.rules;
+                    
+                    // Recompute grouped categories with new rules
+                    const rulesByCategoryId = new Map();
+                    rules.forEach(rule => {
+                        if (!rule.category_id) return;
+                        const categoryRules = rulesByCategoryId.get(rule.category_id) || [];
+                        categoryRules.push(rule);
+                        rulesByCategoryId.set(rule.category_id, categoryRules);
+                    });
+
+                    const grouped = categories.map(category => {
+                        const categoryRules = rulesByCategoryId.get(category.id) || [];
+                        const subcategories = (category.subcategories || []).map(subcategory => ({
+                            ...subcategory,
+                            rules: categoryRules.filter(rule => rule.subcategory_id === subcategory.id)
+                        }));
+
+                        return {
+                            ...category,
+                            rules: categoryRules.filter(rule => !rule.subcategory_id),
+                            subcategories,
+                            totalRules: categoryRules.length
+                        };
+                    });
+
+                    // Sort by total rules in descending order
+                    groupedCategories = grouped.sort((a, b) => b.totalRules - a.totalRules);
+
+                    // Update selected subcategory if it exists
+                    if (selectedSubcategory && selectedCategory) {
+                        const updatedCategory = grouped.find(c => c.id === selectedCategory.id);
+                        if (updatedCategory) {
+                            const updatedSubcategory = updatedCategory.subcategories.find(
+                                sub => sub.id === selectedSubcategory.id
+                            );
+                            if (updatedSubcategory) {
+                                selectedSubcategory = updatedSubcategory;
+                            }
+                        }
+                    }
                 }
+                handleCancelEdit();
             } else if (result.type === 'error') {
                 errorMessage = result.error?.message || 'An error occurred while saving';
             }
@@ -323,7 +368,7 @@
 <!-- Category Detail Modal -->
 {#if !showingCategories && selectedCategory}
 <div 
-    class="fixed inset-0 z-[60] flex items-center justify-center p-0 sm:p-6 bg-transparent"
+    class="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6 bg-transparent"
     role="dialog"
     aria-modal="true"
 >
@@ -337,7 +382,7 @@
     ></div>
 
     <!-- Modal Content -->
-    <div class="relative bg-white dark:bg-slate-900 w-full h-[min(600px,100vh-2rem)] sm:h-[600px] sm:w-[600px] flex flex-col overflow-hidden shadow-xl sm:rounded-2xl">
+    <div class="relative bg-white dark:bg-slate-900 w-[calc(100%-2rem)] sm:w-[500px] max-h-[calc(100vh-4rem)] flex flex-col overflow-hidden shadow-xl rounded-2xl">
         <!-- Header -->
         <div class="flex-none flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
             <div class="flex items-center gap-2">
@@ -377,9 +422,19 @@
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
                                         </svg>
                                     </button>
-                                    <span class="text-sm text-gray-500 dark:text-gray-400">
-                                        {selectedSubcategory?.rules?.length || 0} rules
-                                    </span>
+                                    <div class="flex items-center gap-3">
+                                        <span class="text-sm text-gray-500 dark:text-gray-400">
+                                            {selectedSubcategory?.rules?.length || 0} rules
+                                        </span>
+                                        <button
+                                            type="button"
+                                            class="p-1 text-blue-600 hover:text-blue-800 dark:text-blue-500 dark:hover:text-blue-400"
+                                            onclick={() => handleEditRule(undefined, selectedCategory, selectedSubcategory)}
+                                            aria-label="Add new rule"
+                                        >
+                                            <svg class="size-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                             {#if selectedSubcategory}
@@ -399,16 +454,11 @@
                                                         method="POST"
                                                         action="?/applyRule"
                                                         use:enhance={() => {
-                                                            console.log('Starting apply rule...');
                                                             isLoading = true;
                                                             errorMessage = null;
-                                                            
                                                             return async ({ result }) => {
-                                                                console.log('Apply rule result:', result);
                                                                 isLoading = false;
-                                                                
                                                                 if (result.type === 'success') {
-                                                                    console.log('Apply rule success, affected count:', result.data?.affectedCount);
                                                                     if (result.data?.rules) {
                                                                         rules = result.data.rules;
                                                                         // Update the selected subcategory's rules if it exists
@@ -482,110 +532,126 @@
 
 <!-- Edit Rule Modal -->
 {#if editingRule}
-<dialog 
-    class="fixed inset-0 z-[60] flex items-center justify-center p-0 sm:p-6 bg-transparent"
-    open
-    onclose={handleCancelEdit}
+<div 
+    class="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6 bg-transparent"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="edit-modal-title"
 >
     <!-- Backdrop -->
     <div 
         class="fixed inset-0 bg-black/50 backdrop-blur-sm" 
         aria-hidden="true"
         onclick={handleCancelEdit}
+        onkeydown={(e) => e.key === 'Escape' && handleCancelEdit()}
         role="presentation"
     ></div>
 
     <!-- Modal Content -->
-    <div class="relative transform overflow-hidden bg-white text-left shadow-xl transition-all w-full sm:max-w-2xl dark:bg-slate-900 modal-content">
+    <div class="relative bg-white dark:bg-slate-900 w-[calc(100%-2rem)] sm:w-[500px] max-h-[calc(100vh-4rem)] flex flex-col overflow-hidden shadow-xl rounded-2xl">
         <form 
             id="rule-form"
             method="POST"
-            action="?/upsertRule"
+            action={editingRule.id ? "?/upsertRule" : "?/createRule"}
             use:enhance={handleSubmit}
-            class="p-4 sm:p-6"
+            class="flex flex-col h-full"
         >
-            <div class="mb-4 sm:mb-6">
-                <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-200">
+            <div class="flex-none flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+                <h2 id="edit-modal-title" class="text-lg font-semibold text-gray-900 dark:text-white">
                     {editingRule.id ? 'Edit Rule' : 'New Rule'}
-                </h3>
-            </div>
-
-            {#if errorMessage}
-                <div class="mb-4 p-4 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm">
-                    {errorMessage}
-                </div>
-            {/if}
-
-            <input type="hidden" name="id" value={editingRule.id} />
-            
-            <!-- Pattern Input -->
-            <div class="mb-4 sm:mb-6">
-                <label for="pattern" class="block mb-2 text-sm font-medium text-gray-800 dark:text-gray-200">Pattern</label>
-                <input
-                    type="text"
-                    id="pattern"
-                    name="pattern"
-                    class="py-3 px-4 block w-full border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-800 dark:border-gray-700 dark:text-gray-400 dark:focus:ring-gray-600"
-                    bind:value={editingRule.pattern}
-                    placeholder="Enter pattern..."
-                    required
-                />
-            </div>
-
-            <!-- Category Selection -->
-            <div class="mb-4 sm:mb-6">
-                <label for="category-selector" class="block mb-2 text-sm font-medium text-gray-800 dark:text-gray-200">Category</label>
+                </h2>
                 <button
                     type="button"
-                    id="category-selector"
-                    onclick={() => categorySelectionModalOpen = true}
-                    class="w-full text-left px-3 py-2 rounded-lg text-sm bg-white dark:bg-slate-800 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/50"
-                >
-                    {#if editingRule.category_id}
-                        {#if editingRule.subcategory_id}
-                            {editingRule.category?.name} - {editingRule.subcategory?.name}
-                        {:else}
-                            {editingRule.category?.name}
-                        {/if}
-                    {:else}
-                        Select a category...
-                    {/if}
-                </button>
-                <input type="hidden" name="category_id" value={editingRule.category_id} />
-                <input type="hidden" name="subcategory_id" value={editingRule.subcategory_id || ''} />
-            </div>
-
-            <div class="mt-6 flex justify-end gap-x-4">
-                <button
-                    type="button"
-                    class="py-2 px-3 inline-flex items-center gap-x-2 text-sm font-medium rounded-lg border border-gray-200 bg-white text-gray-800 shadow-sm hover:bg-gray-50 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:text-white dark:hover:bg-gray-800 dark:focus:outline-none dark:focus:ring-1 dark:focus:ring-gray-600"
+                    class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
                     onclick={handleCancelEdit}
+                    aria-label="Close edit form"
                 >
-                    Cancel
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
                 </button>
-                <button
-                    type="button"
-                    onclick={handleSave}
-                    class="py-2 px-3 inline-flex items-center gap-x-2 text-sm font-semibold rounded-lg border border-transparent bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:pointer-events-none dark:focus:outline-none dark:focus:ring-1 dark:focus:ring-gray-600"
-                    disabled={isLoading}
-                >
-                    {#if isLoading}
-                        <div class="animate-spin inline-block size-4 border-[3px] border-current border-t-transparent text-white rounded-full" role="status" aria-label="loading"></div>
-                        Saving...
-                    {:else}
-                        Save Changes
-                    {/if}
-                </button>
+            </div>
+
+            <div class="flex-1 overflow-y-auto p-4 sm:p-6">
+                {#if errorMessage}
+                    <div class="mb-4 p-4 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm">
+                        {errorMessage}
+                    </div>
+                {/if}
+
+                <input type="hidden" name="id" value={editingRule.id} />
+                
+                <!-- Pattern Input -->
+                <div class="mb-4 sm:mb-6">
+                    <label for="pattern" class="block mb-2 text-sm font-medium text-gray-800 dark:text-gray-200">Pattern</label>
+                    <input
+                        type="text"
+                        id="pattern"
+                        name="pattern"
+                        class="py-3 px-4 block w-full border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-slate-800 dark:border-gray-700 dark:text-gray-400"
+                        bind:value={editingRule.pattern}
+                        placeholder="Bar manolo"
+                        required
+                        use:focusOnMount
+                    />
+                </div>
+
+                <!-- Category Selection -->
+                <div class="mb-4 sm:mb-6">
+                    <label for="category-selector" class="block mb-2 text-sm font-medium text-gray-800 dark:text-gray-200">Category</label>
+                    <button
+                        type="button"
+                        id="category-selector"
+                        onclick={() => categorySelectionModalOpen = true}
+                        class="w-full text-left px-3 py-2 rounded-lg text-sm bg-white dark:bg-slate-800 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/50"
+                    >
+                        {#if editingRule.category_id}
+                            {#if editingRule.subcategory_id}
+                                {editingRule.category?.name} - {editingRule.subcategory?.name}
+                            {:else}
+                                {editingRule.category?.name}
+                            {/if}
+                        {:else}
+                            Select a category...
+                        {/if}
+                    </button>
+                    <input type="hidden" name="category_id" value={editingRule.category_id} />
+                    <input type="hidden" name="subcategory_id" value={editingRule.subcategory_id || ''} />
+                </div>
+            </div>
+
+            <div class="flex-none p-4 sm:p-6 bg-gray-50 dark:bg-slate-800 border-t border-gray-200 dark:border-gray-700">
+                <div class="flex flex-col-reverse sm:flex-row justify-end gap-3">
+                    <button
+                        type="button"
+                        class="w-full sm:w-auto px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 dark:text-gray-300 dark:bg-slate-800 dark:border-gray-600 dark:hover:bg-slate-700"
+                        onclick={handleCancelEdit}
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        type="submit"
+                        class="w-full sm:w-auto px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 dark:hover:bg-blue-500"
+                        disabled={isLoading}
+                    >
+                        {#if isLoading}
+                            <div class="animate-spin inline-block size-4 border-[2px] border-current border-t-transparent text-white rounded-full mr-2" role="status" aria-label="loading"></div>
+                            Saving...
+                        {:else}
+                            Save Changes
+                        {/if}
+                    </button>
+                </div>
             </div>
         </form>
     </div>
-</dialog>
+</div>
 {/if}
 
 <!-- Delete Confirmation Modal -->
 {#if deleteConfirmationOpen && ruleToDelete}
 <div 
-    class="fixed inset-0 z-[70] flex items-center justify-center p-0 sm:p-6 bg-transparent"
+    class="fixed inset-0 z-[80] flex items-center justify-center p-4 sm:p-6 bg-transparent"
     role="dialog"
     aria-modal="true"
     aria-labelledby="delete-modal-title"
@@ -600,7 +666,7 @@
     ></div>
 
     <!-- Modal Content -->
-    <div class="relative bg-white dark:bg-slate-900 w-full h-auto sm:h-auto sm:w-[500px] max-h-[calc(100vh-2rem)] flex flex-col overflow-hidden shadow-xl sm:rounded-2xl">
+    <div class="relative bg-white dark:bg-slate-900 w-[calc(100%-2rem)] sm:w-[500px] max-h-[calc(100vh-4rem)] flex flex-col overflow-hidden shadow-xl rounded-2xl">
         <div class="flex-none flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
             <h2 id="delete-modal-title" class="text-lg font-semibold text-gray-900 dark:text-white">
                 Delete Rule
@@ -681,7 +747,7 @@
 <!-- Category Selection Modal -->
 {#if categorySelectionModalOpen}
 <div 
-    class="fixed inset-0 z-[60] flex items-center justify-center p-0 sm:p-6 bg-transparent"
+    class="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6 bg-transparent"
     role="dialog"
     aria-modal="true"
     aria-labelledby="category-selection-title"
@@ -704,7 +770,7 @@
     ></div>
 
     <!-- Modal Content -->
-    <div class="relative bg-white dark:bg-slate-900 w-full h-[min(600px,100vh-2rem)] sm:h-[600px] sm:w-[600px] flex flex-col overflow-hidden shadow-xl sm:rounded-2xl">
+    <div class="relative bg-white dark:bg-slate-900 w-[calc(100%-2rem)] sm:w-[500px] max-h-[calc(100vh-4rem)] flex flex-col overflow-hidden shadow-xl rounded-2xl">
         <!-- Header -->
         <div class="flex-none flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
             <div class="flex items-center gap-2">
@@ -800,7 +866,7 @@
 <!-- Apply Rule Result Modal -->
 {#if applyRuleResult}
 <div 
-    class="fixed inset-0 z-[70] flex items-center justify-center p-0 sm:p-6 bg-transparent"
+    class="fixed inset-0 z-[70] flex items-center justify-center p-4 sm:p-6 bg-transparent"
     role="dialog"
     aria-modal="true"
 >
@@ -814,7 +880,7 @@
     ></div>
 
     <!-- Modal Content -->
-    <div class="relative bg-white dark:bg-slate-900 w-full h-auto sm:h-auto sm:w-[500px] max-h-[calc(100vh-2rem)] flex flex-col overflow-hidden shadow-xl sm:rounded-2xl">
+    <div class="relative bg-white dark:bg-slate-900 w-[calc(100%-2rem)] sm:w-[500px] max-h-[calc(100vh-4rem)] flex flex-col overflow-hidden shadow-xl rounded-2xl">
         <div class="flex-none flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
             <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
                 Rule Applied
@@ -848,4 +914,34 @@
         </div>
     </div>
 </div>
-{/if} 
+{/if}
+
+<style>
+    /* Add animation for toast */
+    @keyframes fade-up {
+        from {
+            opacity: 0;
+            transform: translate(-50%, 1rem);
+        }
+        to {
+            opacity: 1;
+            transform: translate(-50%, 0);
+        }
+    }
+
+    .animate-fade-up {
+        animation: fade-up 0.2s ease-out;
+    }
+
+    /* Add tooltip styles */
+    .tooltip {
+        visibility: hidden;
+        opacity: 0;
+        transition: visibility 0s, opacity 0.2s ease-in-out;
+    }
+
+    .tooltip-trigger:hover + .tooltip {
+        visibility: visible;
+        opacity: 1;
+    }
+</style> 

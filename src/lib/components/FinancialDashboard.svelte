@@ -10,6 +10,7 @@
         Legend
     } from 'chart.js';
     import CategoryPieChart from './CategoryPieChart.svelte';
+    import { goto } from '$app/navigation';
 
     // Register Chart.js components
     Chart.register(
@@ -56,6 +57,7 @@
         from: '',
         to: ''
     });
+    let categoryAutoCycleTrigger = $state(0);
 
     // Process category data for pie chart
     function processCategories(categories: ChartDataPoint['categories']) {
@@ -162,11 +164,36 @@
 
     // Format x-axis label based on period
     function formatXAxisLabel(period: string, date: string): string {
-        const currentDate = new Date(date);
+        // Handle MMM YYYY format (e.g., "Nov 2024")
+        if (date.match(/^[A-Za-z]{3}\s\d{4}$/)) {
+            const [monthStr, yearStr] = date.split(' ');
+            const monthIndex = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+                .findIndex(m => m === monthStr);
+            
+            if (monthIndex !== -1) {
+                switch (selectedPeriod) {
+                    case 'month':
+                        return monthStr;
+                    case 'year':
+                        return yearStr;
+                    default:
+                        return date;
+                }
+            }
+        }
+
+        // Fallback to standard date parsing for other formats
+        const safeDate = date.includes('T') ? date : `${date}T00:00:00`;
+        const currentDate = new Date(safeDate);
+        
+        if (isNaN(currentDate.getTime())) {
+            console.error('Invalid date:', date);
+            return period;
+        }
         
         switch (selectedPeriod) {
             case 'month':
-                return `${getMonthName(currentDate.getMonth())}`;
+                return getMonthName(currentDate.getMonth());
             case 'year':
                 return currentDate.getFullYear().toString();
             default:
@@ -197,6 +224,7 @@
         const displayData = chartData.slice(-5);
         selectedBarIndex = Math.min(selectedBarIndex, displayData.length - 1);
         selectedBarData = displayData[selectedBarIndex];
+        categoryAutoCycleTrigger++; // Increment trigger to restart auto-cycle
 
         const config = {
             type: 'bar' as const,
@@ -262,6 +290,7 @@
                         if (newIndex !== selectedBarIndex) {
                             selectedBarIndex = newIndex;
                             selectedBarData = displayData[selectedBarIndex];
+                            categoryAutoCycleTrigger++; // Increment trigger to restart auto-cycle
                             
                             // Update chart colors without recreating the chart
                             chartInstance.data.datasets.forEach((dataset, i) => {
@@ -376,6 +405,61 @@
         }
     }
 
+    // Function to handle stat card clicks and redirect to transactions
+    function handleStatCardClick(type: 'income' | 'expense' | 'all') {
+        let year: number;
+        let month: number;
+
+        if (selectedPeriod === 'month') {
+            // Parse month view format (e.g., "Dec 2024")
+            const periodParts = selectedBarData.period.split(' ');
+            const monthStr = periodParts[0];
+            year = parseInt(periodParts[1]);
+            
+            // Get month index (0-11) from month name
+            const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            month = monthNames.indexOf(monthStr);
+        } else {
+            // For year view, period is just the year
+            year = parseInt(selectedBarData.period);
+        }
+
+        let dateFrom: string;
+        let dateTo: string;
+
+        if (selectedPeriod === 'month' && !isNaN(month) && !isNaN(year)) {
+            // Format dates for month view
+            const monthStr = (month + 1).toString().padStart(2, '0');
+            dateFrom = `${year}-${monthStr}-01`;
+            
+            // Calculate last day of month
+            const lastDay = new Date(year, month + 1, 0).getDate();
+            dateTo = `${year}-${monthStr}-${lastDay}`;
+        } else if (!isNaN(year)) {
+            // For year view
+            dateFrom = `${year}-01-01`;
+            dateTo = `${year}-12-31`;
+        } else {
+            console.error('Invalid date format:', selectedBarData.period);
+            return; // Don't redirect if we can't parse the date
+        }
+
+        // Construct the URL with query parameters
+        const params = new URLSearchParams({
+            dateFrom,
+            dateTo,
+            'sort.column': 'date',
+            'sort.direction': 'desc',
+            type,
+            page: '1',
+            'categories[]': '17',
+            categoriesNegative: 'true'
+        });
+
+        // Redirect to transactions page
+        goto(`/transactions?${params.toString()}`);
+    }
+
     onMount(() => {
         window.addEventListener('resize', handleResize);
         window.addEventListener('click', handleClickOutside);
@@ -393,28 +477,43 @@
 
 <div class="financial-dashboard">
     <div>
-        <div class="flex justify-between items-center mb-4">
-            <h2 class="text-2xl font-bold text-gray-800 dark:text-gray-200">Analysis</h2>
-            
+        <!-- Combined Date Range and Period Selector -->
+        <div class="flex justify-between items-center mb-3">
+            <!-- Date Range Display -->
+            <div class="text-sm text-gray-600 dark:text-gray-400">
+                {getDateRangeText()}
+            </div>
+
             <!-- Period Dropdown -->
             <div class="relative">
                 <button id="dropdownDefaultButton" 
-                    class="text-white bg-blue-600 hover:bg-blue-700 focus:ring-4 focus:outline-none focus:ring-blue-300 font-medium rounded-full text-sm px-5 py-2.5 text-center inline-flex items-center dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800" 
+                    class="text-white bg-blue-600 hover:bg-blue-700 focus:ring-4 focus:outline-none focus:ring-blue-300 font-medium rounded-full text-xs px-3 py-1.5 text-center inline-flex items-center dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800" 
                     type="button"
-                    onclick={() => toggleDropdown()}>
+                    onclick={() => toggleDropdown()}
+                    onkeydown={(e) => e.key === 'Enter' && toggleDropdown()}
+                    aria-expanded={isDropdownOpen}
+                    aria-controls="dropdown"
+                    aria-haspopup="true">
                     {selectedPeriod.charAt(0).toUpperCase() + selectedPeriod.slice(1)}
-                    <svg class="w-2.5 h-2.5 ms-3" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 10 6">
+                    <svg class="w-2 h-2 ms-2" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 10 6">
                         <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 1 4 4 4-4"/>
                     </svg>
                 </button>
                 
                 <!-- Dropdown menu -->
                 {#if isDropdownOpen}
-                <div id="dropdown" class="z-10 absolute right-0 mt-2 bg-white divide-y divide-gray-100 rounded-lg shadow w-44 dark:bg-gray-700">
-                    <ul class="py-2 text-sm text-gray-700 dark:text-gray-200" aria-labelledby="dropdownDefaultButton">
+                <div id="dropdown" 
+                    class="z-10 absolute right-0 mt-1 bg-white divide-y divide-gray-100 rounded-lg shadow w-32 dark:bg-gray-700"
+                    role="menu"
+                    aria-labelledby="dropdownDefaultButton">
+                    <ul class="py-1 text-xs text-gray-700 dark:text-gray-200">
                         {#each ['month', 'year'] as period}
                             <li>
-                                <button onclick={() => handlePeriodChange(period)} class="block w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-600 dark:hover:text-white">
+                                <button 
+                                    onclick={() => handlePeriodChange(period)} 
+                                    onkeydown={(e) => e.key === 'Enter' && handlePeriodChange(period)}
+                                    class="block w-full text-left px-3 py-1 hover:bg-gray-100 dark:hover:bg-gray-600 dark:hover:text-white"
+                                    role="menuitem">
                                     {period.charAt(0).toUpperCase() + period.slice(1)}
                                 </button>
                             </li>
@@ -427,46 +526,46 @@
 
         {#if isLoading}
             <!-- Loading Spinner -->
-            <div class="flex justify-center items-center p-20">
-                <div class="animate-spin inline-block size-8 border-[3px] border-current border-t-transparent text-blue-600 rounded-full dark:text-blue-500" role="status" aria-label="loading">
+            <div class="flex justify-center items-center p-12">
+                <div class="animate-spin inline-block size-6 border-[2px] border-current border-t-transparent text-blue-600 rounded-full dark:text-blue-500" role="status" aria-label="loading">
                     <span class="sr-only">Loading...</span>
                 </div>
             </div>
         {:else if error}
             <!-- Error Message -->
-            <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative dark:bg-red-900 dark:border-red-800 dark:text-red-200 mb-6">
+            <div class="bg-red-100 border border-red-400 text-red-700 px-3 py-2 rounded relative dark:bg-red-900 dark:border-red-800 dark:text-red-200 mb-4 text-sm">
                 <strong class="font-bold">Error!</strong>
                 <span class="block sm:inline"> {error}</span>
             </div>
         {:else if chartData.length === 0}
             <!-- No Data Message -->
-            <div class="flex flex-col items-center justify-center p-8 text-center bg-white border border-gray-200 rounded-xl shadow-sm dark:bg-slate-900 dark:border-gray-700 mb-6">
-                <svg class="size-16 text-gray-300 dark:text-gray-600 mb-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg>
-                <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-200">No data available</h3>
-                <p class="text-gray-500 mt-1">Try adjusting your filters or adding new transactions</p>
+            <div class="flex flex-col items-center justify-center p-6 text-center bg-white border border-gray-200 rounded-xl shadow-sm dark:bg-slate-900 dark:border-gray-700 mb-4">
+                <svg class="size-12 text-gray-300 dark:text-gray-600 mb-3" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg>
+                <h3 class="text-base font-semibold text-gray-800 dark:text-gray-200">No data available</h3>
+                <p class="text-sm text-gray-500 mt-0.5">Try adjusting your filters or adding new transactions</p>
             </div>
         {:else}
-            <!-- Date Range Display -->
-            <div class="text-gray-600 dark:text-gray-400 mb-4">
-                {getDateRangeText()}
-            </div>
-
             <!-- Chart Container -->
-            <div class="chart-container bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 mb-6 relative" bind:this={chartContainer}>
+            <div class="chart-container bg-white dark:bg-gray-800 rounded-xl shadow-sm p-3 mb-3 relative" bind:this={chartContainer}>
                 <!-- Navigation Buttons -->
                 <button 
+                    type="button"
                     class="navigation-button left-2"
                     onclick={() => navigateBack()}
+                    onkeydown={(e) => e.key === 'Enter' && navigateBack()}
                     aria-label="View previous periods">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
                     </svg>
                 </button>
                 <button 
+                    type="button"
                     class="navigation-button right-2 {currentOffset === 0 ? 'invisible' : ''}"
                     onclick={() => navigateForward()}
-                    aria-label="View next periods">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    onkeydown={(e) => e.key === 'Enter' && navigateForward()}
+                    aria-label="View next periods"
+                    aria-hidden={currentOffset === 0}>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
                     </svg>
                 </button>
@@ -474,39 +573,54 @@
             </div>
 
             <!-- Summary Stats -->
-            <div class="summary-stats mb-6">
-                <div class="grid grid-cols-3 gap-2 sm:gap-3">
+            <div class="summary-stats mb-3">
+                <div class="grid grid-cols-3 gap-1.5">
                     <!-- Income Card -->
-                    <div class="stat-card flex flex-col">
-                        <span class="text-xs sm:text-sm font-medium text-gray-500 dark:text-gray-400 mb-0.5 sm:mb-1">Income</span>
-                        <div class="flex items-center space-x-1.5 sm:space-x-2">
-                            <div class="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-blue-500"></div>
-                            <span class="text-lg sm:text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-100">
+                    <button 
+                        type="button"
+                        class="stat-card flex flex-col items-center justify-center text-center cursor-pointer"
+                        onclick={() => handleStatCardClick('income')}
+                        onkeydown={(e) => e.key === 'Enter' && handleStatCardClick('income')}
+                        aria-label="View income details">
+                        <span class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-0.5">Income</span>
+                        <div class="flex items-center space-x-1">
+                            <div class="w-1 h-1 rounded-full bg-blue-500"></div>
+                            <span class="text-base text-lg font-semibold tracking-tight text-gray-900 dark:text-gray-100">
                                 {formatEuro(selectedBarData.income)}
                             </span>
                         </div>
-                    </div>
-                    
+                    </button>
+
                     <!-- Expenses Card -->
-                    <div class="stat-card flex flex-col">
-                        <span class="text-xs sm:text-sm font-medium text-gray-500 dark:text-gray-400 mb-0.5 sm:mb-1">Expenses</span>
-                        <div class="flex items-center space-x-1.5 sm:space-x-2">
-                            <div class="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-red-500"></div>
-                            <span class="text-lg sm:text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-100">
+                    <button 
+                        type="button"
+                        class="stat-card flex flex-col items-center justify-center text-center cursor-pointer"
+                        onclick={() => handleStatCardClick('expense')}
+                        onkeydown={(e) => e.key === 'Enter' && handleStatCardClick('expense')}
+                        aria-label="View expense details">
+                        <span class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-0.5">Expenses</span>
+                        <div class="flex items-center space-x-1">
+                            <div class="w-1 h-1 rounded-full bg-red-500"></div>
+                            <span class="text-base text-lg font-semibold tracking-tight text-gray-900 dark:text-gray-100">
                                 {formatEuro(selectedBarData.expenses)}
                             </span>
                         </div>
-                    </div>
+                    </button>
                     
                     <!-- Net Card -->
-                    <div class="stat-card flex flex-col">
-                        <span class="text-xs sm:text-sm font-medium text-gray-500 dark:text-gray-400 mb-0.5 sm:mb-1">Net</span>
-                        <div class="flex items-center space-x-1.5 sm:space-x-2">
-                            <div class="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full" 
+                    <button 
+                        type="button"
+                        class="stat-card flex flex-col items-center justify-center text-center cursor-pointer"
+                        onclick={() => handleStatCardClick('all')}
+                        onkeydown={(e) => e.key === 'Enter' && handleStatCardClick('all')}
+                        aria-label="View net balance details">
+                        <span class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-0.5">Net</span>
+                        <div class="flex items-center space-x-1">
+                            <div class="w-1 h-1 rounded-full" 
                                  class:bg-green-500={selectedBarData.net > 0} 
                                  class:bg-red-500={selectedBarData.net < 0} 
                                  class:bg-gray-500={selectedBarData.net === 0}></div>
-                            <span class="text-lg sm:text-2xl font-semibold tracking-tight" 
+                            <span class="text-base text-lg font-semibold tracking-tight" 
                                   class:text-green-600={selectedBarData.net > 0} 
                                   class:text-red-600={selectedBarData.net < 0}
                                   class:text-gray-600={selectedBarData.net === 0}
@@ -516,13 +630,16 @@
                                 {formatEuro(selectedBarData.net)}
                             </span>
                         </div>
-                    </div>
+                    </button>
                 </div>
             </div>
 
             <!-- Category Pie Chart -->
             {#if selectedBarData.categories?.length > 0}
-                <CategoryPieChart data={processCategories(selectedBarData.categories)} />
+                <CategoryPieChart 
+                    data={processCategories(selectedBarData.categories)} 
+                    triggerAutoCycle={categoryAutoCycleTrigger}
+                />
             {/if}
         {/if}
     </div>
@@ -532,28 +649,28 @@
     .financial-dashboard {
         max-width: 1200px;
         margin: 0 auto;
-        padding: 1rem;
+        padding: 0.5rem;
     }
     
     .chart-container {
-        height: 200px;
+        height: 160px;
         width: 100%;
-        margin-bottom: 1rem;
+        margin-bottom: 0.75rem;
     }
     
     .stat-card {
         background-color: rgba(255, 255, 255, 0.8);
         backdrop-filter: blur(10px);
         -webkit-backdrop-filter: blur(10px);
-        border-radius: 1rem;
-        padding: 1rem;
+        border-radius: 0.75rem;
+        padding: 0.5rem;
         border: 1px solid rgba(229, 231, 235, 0.5);
         transition: all 0.2s ease-in-out;
     }
     
     .stat-card:hover {
         transform: translateY(-1px);
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.1);
     }
     
     /* Dark mode support */
@@ -568,7 +685,7 @@
         transform: translateY(-50%);
         background-color: rgba(255, 255, 255, 0.8);
         color: #4B5563;
-        padding: 0.375rem;
+        padding: 0.25rem;
         border-radius: 9999px;
         cursor: pointer;
         transition: all 0.2s ease-in-out;
@@ -598,12 +715,12 @@
 
     @media (max-width: 640px) {
         .stat-card {
-            padding: 0.75rem;
+            padding: 0.5rem;
             font-size: 0.875rem;
         }
         
         .chart-container {
-            height: 180px;
+            height: 140px;
         }
     }
 </style>

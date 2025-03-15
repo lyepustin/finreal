@@ -1,37 +1,37 @@
 import { json } from '@sveltejs/kit';
-import type { RequestHandler } from './$types';
-import { supabase } from '$lib/db/supabase';
-import type { Category } from '$lib/types';
+import type { RequestHandler } from '@sveltejs/kit';
 
-export const GET: RequestHandler = async () => {
+export const GET: RequestHandler = async ({ locals: { supabase } }) => {
     try {
-        const { data, error } = await supabase
-            .rpc('get_categories_with_subcategories');
+        const { data: categories, error } = await supabase
+            .from('categories')
+            .select(`
+                id,
+                name,
+                subcategories (
+                    id,
+                    name
+                )
+            `)
+            .order('name');
 
         if (error) {
             console.error('Error fetching categories:', error);
             return json({ 
-                categories: [], 
-                error: 'Failed to fetch categories' 
+                success: false,
+                error: 'Failed to fetch categories'
             }, { status: 500 });
         }
 
-        // Transform the data to match our Category type
-        const categories: Category[] = data.map(cat => ({
-            id: cat.id,
-            name: cat.name,
-            subcategories: cat.subcategories
-        }));
-
         return json({
-            categories
+            success: true,
+            categories: categories || []
         });
-
     } catch (error) {
         console.error('Error in categories endpoint:', error);
         return json({ 
-            categories: [], 
-            error: 'Internal server error' 
+            success: false,
+            error: 'Internal server error'
         }, { status: 500 });
     }
-} 
+}; 

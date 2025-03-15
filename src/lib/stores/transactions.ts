@@ -1,41 +1,33 @@
 import { supabase } from '$lib/db/supabase'
 
 async function updateTransactionDescription(id: number, description: string) {
-    const { error } = await supabase
-        .from('transactions')
-        .update({ user_description: description })
-        .eq('id', id);
+    const response = await fetch(`/api/transactions/${id}/description`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ description })
+    });
 
-    if (error) {
+    if (!response.ok) {
+        const error = await response.text();
         console.error('Error updating transaction description:', error);
         throw new Error('Failed to update transaction description');
     }
 }
 
 async function updateTransactionCategories(id: number, categories: { categoryId: number; subcategoryId: number | null; amount: number }[]) {
-    // Start a transaction
-    const { error: deleteError } = await supabase
-        .from('transaction_categories')
-        .delete()
-        .eq('transaction_id', id);
+    const response = await fetch(`/api/transactions/${id}/categories`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ categories })
+    });
 
-    if (deleteError) {
-        console.error('Error deleting old categories:', deleteError);
-        throw new Error('Failed to update transaction categories');
-    }
-
-    // Insert new categories
-    const { error: insertError } = await supabase
-        .from('transaction_categories')
-        .insert(categories.map(cat => ({
-            transaction_id: id,
-            category_id: cat.categoryId,
-            subcategory_id: cat.subcategoryId,
-            amount: cat.amount
-        })));
-
-    if (insertError) {
-        console.error('Error inserting new categories:', insertError);
+    if (!response.ok) {
+        const error = await response.text();
+        console.error('Error updating transaction categories:', error);
         throw new Error('Failed to update transaction categories');
     }
 }

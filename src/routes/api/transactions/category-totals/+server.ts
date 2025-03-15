@@ -1,10 +1,9 @@
 import { json } from '@sveltejs/kit';
-import { supabase } from '$lib/db/supabase';
 import type { RequestHandler } from '@sveltejs/kit';
 import { measureAsync } from '$lib/utils/performance';
 import type { CategoryTotal, CategoryTotalsResponse } from './index';
 
-export const GET: RequestHandler = async ({ url }) => {
+export const GET: RequestHandler = async ({ locals: { supabase }, url }) => {
     return await measureAsync('get_category_totals', async () => {
         try {
             // Get filter parameters from URL

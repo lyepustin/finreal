@@ -22,9 +22,10 @@
     };
 
     // Props
-    const { data = [], title = 'Spending by category' } = $props<{
+    const { data = [], title = 'Spending by category', triggerAutoCycle = 0 } = $props<{
         data: CategoryData[];
         title?: string;
+        triggerAutoCycle?: number;
     }>();
 
     // State
@@ -32,6 +33,9 @@
     let canvas: HTMLCanvasElement;
     let chartContainer: HTMLDivElement;
     let selectedCategory = $state<CategoryData | null>(null);
+    let isAutoCycling = $state(false);
+    let autoCycleInterval: number | null = $state(null);
+    let preventAutoStart = $state(false);
 
     // Colors for the chart (using softer pastel colors)
     const COLORS = [
@@ -43,9 +47,32 @@
         'rgba(209, 213, 219, 0.8)'   // light gray for "Others"
     ];
 
+    // Highlight colors (slightly more vibrant versions)
+    const HIGHLIGHT_COLORS = [
+        'rgba(74, 222, 128, 0.9)',   // light green
+        'rgba(192, 132, 252, 0.9)',  // light purple
+        'rgba(96, 165, 250, 0.9)',   // light blue
+        'rgba(251, 191, 36, 0.9)',   // light amber
+        'rgba(248, 113, 113, 0.9)',  // light red
+        'rgba(209, 213, 219, 0.9)'   // light gray for "Others"
+    ];
+
+    // Dimmed colors (less dim than before)
+    const DIMMED_COLORS = [
+        'rgba(74, 222, 128, 0.5)',   // light green
+        'rgba(192, 132, 252, 0.5)',  // light purple
+        'rgba(96, 165, 250, 0.5)',   // light blue
+        'rgba(251, 191, 36, 0.5)',   // light amber
+        'rgba(248, 113, 113, 0.5)',  // light red
+        'rgba(209, 213, 219, 0.5)'   // light gray for "Others"
+    ];
+
     function formatEuro(value: number): string {
         return `${Math.round(value).toLocaleString()}€`;
     }
+
+    // Track if chart is ready
+    let isChartReady = $state(false);
 
     function updateChart() {
         if (!canvas || !data.length) return;
@@ -61,8 +88,9 @@
                 datasets: [{
                     data: data.map(d => Math.abs(d.amount)),
                     backgroundColor: COLORS,
-                    hoverBackgroundColor: COLORS.map(color => color.replace('0.8', '1')),
-                    borderWidth: 0,
+                    hoverBackgroundColor: HIGHLIGHT_COLORS,
+                    borderWidth: 2,
+                    borderColor: 'transparent',
                     borderRadius: 4,
                 }]
             },
@@ -86,18 +114,38 @@
                         enabled: false
                     }
                 },
+                animation: {
+                    duration: (context) => {
+                        // Only animate on initial render
+                        return context.initial ? 1000 : 0;
+                    },
+                    onComplete: () => {
+                        isChartReady = true;
+                        // Start auto cycling only after first render is complete and if not prevented
+                        if (!isAutoCycling && !selectedCategory && !preventAutoStart) {
+                            startAutoCycle();
+                        }
+                    }
+                },
                 onClick: (event, elements) => {
+                    // Prevent the event from bubbling up to the window click handler
+                    event.native?.stopPropagation();
+                    
+                    // Stop auto cycling when user interacts with chart
+                    stopAutoCycle();
+                    preventAutoStart = true;
+                    
                     if (elements && elements.length > 0) {
                         const index = elements[0].index;
-                        // If clicking the same category, do nothing (let the window click handler handle it)
+                        // If clicking the same category, do nothing
                         if (selectedCategory?.id !== data[index].id) {
                             selectedCategory = data[index];
-                            // Dim unselected categories
-                            chartInstance!.data.datasets[0].backgroundColor = COLORS.map((color, i) => 
-                                i === index ? color : color.replace('0.8', '0.3')
-                            );
-                            chartInstance!.update('none');
+                            updateCategoryHighlight(index);
                         }
+                    } else {
+                        // Clicked empty space, deselect
+                        selectedCategory = null;
+                        resetChartColors();
                     }
                 }
             },
@@ -130,13 +178,26 @@
                         const x = centerX + Math.cos(midAngle) * (radius + 25);
                         const y = centerY + Math.sin(midAngle) * (radius + 25);
                         
-                        // Store emoji click area (20x20 px around the emoji center)
-                        chart.emojiAreas.push({
-                            x: x - 10,
-                            y: y - 10,
-                            width: 20,
-                            height: 20,
+                        // Create a larger clickable area (40x40 px around the emoji center)
+                        const touchArea = {
+                            x: x - 20,
+                            y: y - 20,
+                            width: 40,
+                            height: 40,
                             index: i
+                        };
+                        
+                        // Store both the pie segment area and the emoji touch area
+                        chart.emojiAreas.push({
+                            emoji: touchArea,
+                            segment: {
+                                startAngle: currentAngle,
+                                endAngle: currentAngle + angle,
+                                radius,
+                                centerX,
+                                centerY,
+                                index: i
+                            }
                         });
                         
                         // Draw emoji
@@ -144,6 +205,10 @@
                             (data[i].id === selectedCategory.id ? '#000' : 'rgba(0, 0, 0, 0.3)') : 
                             '#000';
                         ctx.fillText(chart.data.labels[i], x, y);
+                        
+                        // Debug: Draw touch area (uncomment to see touch areas)
+                        // ctx.strokeStyle = 'rgba(255, 0, 0, 0.2)';
+                        // ctx.strokeRect(touchArea.x, touchArea.y, touchArea.width, touchArea.height);
                         
                         currentAngle += angle;
                     });
@@ -156,10 +221,69 @@
         chartInstance = new Chart(canvas, config);
     }
 
-    // Check if a point is inside an emoji area
-    function isPointInEmojiArea(x: number, y: number, area: { x: number, y: number, width: number, height: number }) {
-        return x >= area.x && x <= area.x + area.width && 
-               y >= area.y && y <= area.y + area.height;
+    function updateCategoryHighlight(selectedIndex: number) {
+        if (!chartInstance) return;
+
+        // Update segment colors
+        chartInstance.data.datasets[0].backgroundColor = COLORS.map((_, i) => 
+            i === selectedIndex ? HIGHLIGHT_COLORS[i] : DIMMED_COLORS[i]
+        );
+
+        // Update segment borders
+        chartInstance.data.datasets[0].borderColor = COLORS.map((_, i) => 
+            i === selectedIndex ? HIGHLIGHT_COLORS[i] : 'transparent'
+        );
+
+        // Use a more efficient update
+        chartInstance.update('none');
+    }
+
+    function resetChartColors() {
+        if (!chartInstance) return;
+        
+        // Reset all colors to default
+        chartInstance.data.datasets[0].backgroundColor = COLORS;
+        chartInstance.data.datasets[0].borderColor = COLORS.map(() => 'transparent');
+        
+        // Use a more efficient update
+        chartInstance.update('none');
+    }
+
+    // Check if a point is inside an emoji area or pie segment
+    function isPointInEmojiArea(x: number, y: number, area: any) {
+        // Check if point is in emoji touch area
+        if (area.emoji) {
+            const touch = area.emoji;
+            return x >= touch.x && x <= touch.x + touch.width && 
+                   y >= touch.y && y <= touch.y + touch.height;
+        }
+        return false;
+    }
+
+    function isPointInPieSegment(x: number, y: number, segment: any) {
+        // Calculate distance from click to center
+        const dx = x - segment.centerX;
+        const dy = y - segment.centerY;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        
+        // Check if click is within the pie radius
+        if (distance <= segment.radius) {
+            // Calculate angle of click
+            let angle = Math.atan2(dy, dx);
+            if (angle < 0) angle += 2 * Math.PI; // Convert to 0-2π range
+            
+            // Normalize segment angles to 0-2π range
+            let startAngle = segment.startAngle;
+            let endAngle = segment.endAngle;
+            if (startAngle < 0) {
+                startAngle += 2 * Math.PI;
+                endAngle += 2 * Math.PI;
+            }
+            
+            // Check if angle is within segment
+            return angle >= startAngle && angle <= endAngle;
+        }
+        return false;
     }
 
     // Handle any click
@@ -171,45 +295,102 @@
         const x = event.clientX - rect.left;
         const y = event.clientY - rect.top;
 
-        // Check if we clicked on an emoji
-        const emojiAreas = (chartInstance as any).emojiAreas || [];
-        const clickedEmoji = emojiAreas.find(area => isPointInEmojiArea(x, y, area));
+        // Check if we clicked on an emoji or pie segment
+        const areas = (chartInstance as any).emojiAreas || [];
+        const clickedArea = areas.find(area => 
+            isPointInEmojiArea(x, y, area) || isPointInPieSegment(x, y, area.segment)
+        );
 
-        // Get chart elements at click position
-        const elements = chartInstance.getElementsAtEventForMode(event, 'nearest', { intersect: true }, false) || [];
-        
-        // If we clicked either a pie section or an emoji, and it's different from the current selection
-        if ((elements.length > 0 || clickedEmoji) && 
-            selectedCategory?.id !== data[clickedEmoji?.index ?? elements[0]?.index ?? -1]?.id) {
-            const index = clickedEmoji?.index ?? elements[0].index;
-            selectedCategory = data[index];
-            // Dim unselected categories
-            chartInstance.data.datasets[0].backgroundColor = COLORS.map((color, i) => 
-                i === index ? color : color.replace('0.8', '0.3')
-            );
-            chartInstance.update('none');
+        if (clickedArea) {
+            // Stop auto cycling when user interacts
+            stopAutoCycle();
+            preventAutoStart = true;
+
+            const index = clickedArea.emoji.index;
+            if (selectedCategory?.id !== data[index].id) {
+                selectedCategory = data[index];
+                updateCategoryHighlight(index);
+            }
             return;
         }
+
+        // Only handle other clicks if they're outside the chart canvas
+        if (canvas.contains(event.target as Node)) return;
         
-        // In any other case (click on empty space or same category), deselect
+        // Stop auto cycling when user interacts and prevent it from restarting
+        stopAutoCycle();
+        preventAutoStart = true;
+        
+        // If we clicked outside and there's a selection, deselect
         if (selectedCategory) {
             selectedCategory = null;
-            chartInstance.data.datasets[0].backgroundColor = COLORS;
-            chartInstance.update('none');
+            resetChartColors();
+        }
+    }
+
+    // Auto cycle through categories
+    function startAutoCycle() {
+        if (!data || data.length === 0 || !isChartReady) return;
+        
+        isAutoCycling = true;
+        let currentIndex = 0;
+
+        // Initial 5-second delay before starting any movement
+        setTimeout(() => {
+            // Select the first (largest) category
+            selectCategory(currentIndex);
+
+            // Set up the interval to cycle through categories
+            autoCycleInterval = setInterval(() => {
+                currentIndex = (currentIndex + 1) % data.length;
+                selectCategory(currentIndex);
+            }, 1500) as unknown as number;
+        }, 2500); // 5-second delay before starting the auto-cycle
+    }
+
+    function stopAutoCycle() {
+        if (autoCycleInterval) {
+            clearInterval(autoCycleInterval);
+            autoCycleInterval = null;
+        }
+        isAutoCycling = false;
+        preventAutoStart = true; // Prevent auto-cycle from restarting
+    }
+
+    function selectCategory(index: number) {
+        if (!chartInstance || !data[index]) return;
+        
+        selectedCategory = data[index];
+        // Ensure chart is ready before updating visuals
+        if (isChartReady && chartInstance.ctx) {
+            updateCategoryHighlight(index);
         }
     }
 
     onMount(() => {
+        preventAutoStart = false; // Reset the flag on initial mount
         updateChart();
         // Add click listener
         window.addEventListener('click', handleClick);
+        // Note: Auto cycling will start after chart animation completes
+        
         return () => {
             if (chartInstance) {
                 chartInstance.destroy();
             }
             // Remove click listener
             window.removeEventListener('click', handleClick);
+            // Clean up auto cycle
+            stopAutoCycle();
         };
+    });
+
+    // Add effect to watch for triggerAutoCycle changes
+    $effect(() => {
+        if (triggerAutoCycle > 0 && !isAutoCycling && isChartReady) {
+            preventAutoStart = false;
+            startAutoCycle();
+        }
     });
 
     // Add effect to update chart when data changes

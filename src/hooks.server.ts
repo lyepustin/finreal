@@ -39,6 +39,18 @@ const supabase: Handle = async ({ event, resolve }) => {
     const {
       data: { session },
     } = await event.locals.supabase.auth.getSession()
+
+    // If we're signing out, clear all auth cookies
+    if (event.url.pathname === '/auth/signout' && event.request.method === 'POST') {
+      const cookies = event.cookies.getAll()
+      cookies.forEach(cookie => {
+        if (cookie.name.startsWith('sb-')) {
+          event.cookies.delete(cookie.name, { path: '/' })
+        }
+      })
+      return { session: null, user: null }
+    }
+
     if (!session) {
       return { session: null, user: null }
     }
@@ -71,12 +83,33 @@ const authGuard: Handle = async ({ event, resolve }) => {
   event.locals.session = session
   event.locals.user = user
 
-  if (!event.locals.session && event.url.pathname !== '/auth') {
-    throw redirect(303, '/auth');
+  const isApiRoute = event.url.pathname.startsWith('/api/')
+  const isAuthRoute = event.url.pathname.startsWith('/auth/') || event.url.pathname === '/auth'
+  const isSignOutRoute = event.url.pathname === '/auth/signout'
+
+  // Allow sign-out requests to proceed
+  if (isSignOutRoute && event.request.method === 'POST') {
+    return resolve(event)
   }
 
-  if (event.locals.session && event.url.pathname === '/auth') {
-    throw redirect(303, '/'); 
+  // Handle unauthenticated requests
+  if (!event.locals.session && !isAuthRoute) {
+    if (isApiRoute) {
+      // Return 401 for API routes
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      })
+    }
+    // Redirect to auth page for regular routes
+    throw redirect(303, '/auth')
+  }
+
+  // Redirect authenticated users away from auth page, but allow confirmation
+  if (event.locals.session && isAuthRoute && !event.url.pathname.includes('/auth/confirm')) {
+    throw redirect(303, '/')
   }
 
   return resolve(event)
