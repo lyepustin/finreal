@@ -2,6 +2,14 @@
     import { createEventDispatcher } from 'svelte';
     import type { Category, SubCategory, Transaction } from '$lib/types';
 
+    // Add the focusAtEnd action
+    function focusAtEnd(node: HTMLInputElement) {
+        if (node && typeof node.selectionStart !== 'undefined') {
+            node.focus();
+            node.selectionStart = node.selectionEnd = node.value.length;
+        }
+    }
+
     const { transaction, categories, isOpen = false } = $props<{
         transaction?: Transaction;
         categories?: Category[];
@@ -70,6 +78,11 @@
             
             if (!selectedCategories.length) {
                 throw new Error('At least one category is required');
+            }
+
+            // Validate description is not empty
+            if (!selectedDescription.trim()) {
+                throw new Error('Description cannot be empty');
             }
 
             // Validate total amount matches
@@ -248,13 +261,35 @@
                 <label for="description" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Description
                 </label>
-                <input
-                    id="description"
-                    type="text"
-                    bind:value={selectedDescription}
-                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-                    placeholder="Enter description"
-                />
+                <div class="relative">
+                    <input
+                        id="description"
+                        type="text"
+                        bind:value={selectedDescription}
+                        onclick={(e) => {
+                            const input = e.currentTarget;
+                            input.selectionStart = input.selectionEnd = input.value.length;
+                            // Ensure the end of the text is visible by scrolling
+                            requestAnimationFrame(() => {
+                                input.scrollLeft = input.scrollWidth;
+                            });
+                        }}
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white pr-10"
+                        placeholder="Enter description"
+                    />
+                    {#if selectedDescription}
+                        <button
+                            type="button"
+                            class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                            onclick={() => selectedDescription = ''}
+                            aria-label="Clear description"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    {/if}
+                </div>
             </div>
 
             <!-- Categories -->
