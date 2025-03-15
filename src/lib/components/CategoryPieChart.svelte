@@ -22,9 +22,10 @@
     };
 
     // Props
-    const { data = [], title = 'Spending by category' } = $props<{
+    const { data = [], title = 'Spending by category', triggerAutoCycle = 0 } = $props<{
         data: CategoryData[];
         title?: string;
+        triggerAutoCycle?: number;
     }>();
 
     // State
@@ -334,7 +335,7 @@
         isAutoCycling = true;
         let currentIndex = 0;
 
-        // Delay the first selection slightly to ensure chart is ready for updates
+        // Initial 5-second delay before starting any movement
         setTimeout(() => {
             // Select the first (largest) category
             selectCategory(currentIndex);
@@ -344,7 +345,7 @@
                 currentIndex = (currentIndex + 1) % data.length;
                 selectCategory(currentIndex);
             }, 1500) as unknown as number;
-        }, 100); // Small delay to ensure chart is ready
+        }, 2500); // 5-second delay before starting the auto-cycle
     }
 
     function stopAutoCycle() {
@@ -382,6 +383,14 @@
             // Clean up auto cycle
             stopAutoCycle();
         };
+    });
+
+    // Add effect to watch for triggerAutoCycle changes
+    $effect(() => {
+        if (triggerAutoCycle > 0 && !isAutoCycling && isChartReady) {
+            preventAutoStart = false;
+            startAutoCycle();
+        }
     });
 
     // Add effect to update chart when data changes

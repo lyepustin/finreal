@@ -57,6 +57,7 @@
         from: '',
         to: ''
     });
+    let categoryAutoCycleTrigger = $state(0);
 
     // Process category data for pie chart
     function processCategories(categories: ChartDataPoint['categories']) {
@@ -223,6 +224,7 @@
         const displayData = chartData.slice(-5);
         selectedBarIndex = Math.min(selectedBarIndex, displayData.length - 1);
         selectedBarData = displayData[selectedBarIndex];
+        categoryAutoCycleTrigger++; // Increment trigger to restart auto-cycle
 
         const config = {
             type: 'bar' as const,
@@ -288,6 +290,7 @@
                         if (newIndex !== selectedBarIndex) {
                             selectedBarIndex = newIndex;
                             selectedBarData = displayData[selectedBarIndex];
+                            categoryAutoCycleTrigger++; // Increment trigger to restart auto-cycle
                             
                             // Update chart colors without recreating the chart
                             chartInstance.data.datasets.forEach((dataset, i) => {
@@ -605,7 +608,10 @@
 
             <!-- Category Pie Chart -->
             {#if selectedBarData.categories?.length > 0}
-                <CategoryPieChart data={processCategories(selectedBarData.categories)} />
+                <CategoryPieChart 
+                    data={processCategories(selectedBarData.categories)} 
+                    triggerAutoCycle={categoryAutoCycleTrigger}
+                />
             {/if}
         {/if}
     </div>
