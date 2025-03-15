@@ -10,6 +10,7 @@
         Legend
     } from 'chart.js';
     import CategoryPieChart from './CategoryPieChart.svelte';
+    import { goto } from '$app/navigation';
 
     // Register Chart.js components
     Chart.register(
@@ -401,6 +402,61 @@
         }
     }
 
+    // Function to handle stat card clicks and redirect to transactions
+    function handleStatCardClick(type: 'income' | 'expense' | 'all') {
+        let year: number;
+        let month: number;
+
+        if (selectedPeriod === 'month') {
+            // Parse month view format (e.g., "Dec 2024")
+            const periodParts = selectedBarData.period.split(' ');
+            const monthStr = periodParts[0];
+            year = parseInt(periodParts[1]);
+            
+            // Get month index (0-11) from month name
+            const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            month = monthNames.indexOf(monthStr);
+        } else {
+            // For year view, period is just the year
+            year = parseInt(selectedBarData.period);
+        }
+
+        let dateFrom: string;
+        let dateTo: string;
+
+        if (selectedPeriod === 'month' && !isNaN(month) && !isNaN(year)) {
+            // Format dates for month view
+            const monthStr = (month + 1).toString().padStart(2, '0');
+            dateFrom = `${year}-${monthStr}-01`;
+            
+            // Calculate last day of month
+            const lastDay = new Date(year, month + 1, 0).getDate();
+            dateTo = `${year}-${monthStr}-${lastDay}`;
+        } else if (!isNaN(year)) {
+            // For year view
+            dateFrom = `${year}-01-01`;
+            dateTo = `${year}-12-31`;
+        } else {
+            console.error('Invalid date format:', selectedBarData.period);
+            return; // Don't redirect if we can't parse the date
+        }
+
+        // Construct the URL with query parameters
+        const params = new URLSearchParams({
+            dateFrom,
+            dateTo,
+            'sort.column': 'date',
+            'sort.direction': 'desc',
+            type,
+            page: '1',
+            'categories[]': '17',
+            categoriesNegative: 'true'
+        });
+
+        // Redirect to transactions page
+        goto(`/transactions?${params.toString()}`);
+    }
+
     onMount(() => {
         window.addEventListener('resize', handleResize);
         window.addEventListener('click', handleClickOutside);
@@ -501,7 +557,8 @@
             <div class="summary-stats mb-3">
                 <div class="grid grid-cols-3 gap-1.5">
                     <!-- Income Card -->
-                    <div class="stat-card flex flex-col items-center justify-center text-center">
+                    <div class="stat-card flex flex-col items-center justify-center text-center cursor-pointer"
+                         onclick={() => handleStatCardClick('income')}>
                         <span class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-0.5">Income</span>
                         <div class="flex items-center space-x-1">
                             <div class="w-1 h-1 rounded-full bg-blue-500"></div>
@@ -511,9 +568,9 @@
                         </div>
                     </div>
 
-                    
                     <!-- Expenses Card -->
-                    <div class="stat-card flex flex-col items-center justify-center text-center">
+                    <div class="stat-card flex flex-col items-center justify-center text-center cursor-pointer"
+                         onclick={() => handleStatCardClick('expense')}>
                         <span class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-0.5">Expenses</span>
                         <div class="flex items-center space-x-1">
                             <div class="w-1 h-1 rounded-full bg-red-500"></div>
@@ -524,7 +581,8 @@
                     </div>
                     
                     <!-- Net Card -->
-                    <div class="stat-card flex flex-col items-center justify-center text-center">
+                    <div class="stat-card flex flex-col items-center justify-center text-center cursor-pointer"
+                         onclick={() => handleStatCardClick('all')}>
                         <span class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-0.5">Net</span>
                         <div class="flex items-center space-x-1">
                             <div class="w-1 h-1 rounded-full" 
