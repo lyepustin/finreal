@@ -489,7 +489,11 @@
                 <button id="dropdownDefaultButton" 
                     class="text-white bg-blue-600 hover:bg-blue-700 focus:ring-4 focus:outline-none focus:ring-blue-300 font-medium rounded-full text-xs px-3 py-1.5 text-center inline-flex items-center dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800" 
                     type="button"
-                    onclick={() => toggleDropdown()}>
+                    onclick={() => toggleDropdown()}
+                    onkeydown={(e) => e.key === 'Enter' && toggleDropdown()}
+                    aria-expanded={isDropdownOpen}
+                    aria-controls="dropdown"
+                    aria-haspopup="true">
                     {selectedPeriod.charAt(0).toUpperCase() + selectedPeriod.slice(1)}
                     <svg class="w-2 h-2 ms-2" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 10 6">
                         <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 1 4 4 4-4"/>
@@ -498,11 +502,18 @@
                 
                 <!-- Dropdown menu -->
                 {#if isDropdownOpen}
-                <div id="dropdown" class="z-10 absolute right-0 mt-1 bg-white divide-y divide-gray-100 rounded-lg shadow w-32 dark:bg-gray-700">
-                    <ul class="py-1 text-xs text-gray-700 dark:text-gray-200" aria-labelledby="dropdownDefaultButton">
+                <div id="dropdown" 
+                    class="z-10 absolute right-0 mt-1 bg-white divide-y divide-gray-100 rounded-lg shadow w-32 dark:bg-gray-700"
+                    role="menu"
+                    aria-labelledby="dropdownDefaultButton">
+                    <ul class="py-1 text-xs text-gray-700 dark:text-gray-200">
                         {#each ['month', 'year'] as period}
                             <li>
-                                <button onclick={() => handlePeriodChange(period)} class="block w-full text-left px-3 py-1 hover:bg-gray-100 dark:hover:bg-gray-600 dark:hover:text-white">
+                                <button 
+                                    onclick={() => handlePeriodChange(period)} 
+                                    onkeydown={(e) => e.key === 'Enter' && handlePeriodChange(period)}
+                                    class="block w-full text-left px-3 py-1 hover:bg-gray-100 dark:hover:bg-gray-600 dark:hover:text-white"
+                                    role="menuitem">
                                     {period.charAt(0).toUpperCase() + period.slice(1)}
                                 </button>
                             </li>
@@ -538,18 +549,23 @@
             <div class="chart-container bg-white dark:bg-gray-800 rounded-xl shadow-sm p-3 mb-3 relative" bind:this={chartContainer}>
                 <!-- Navigation Buttons -->
                 <button 
+                    type="button"
                     class="navigation-button left-2"
                     onclick={() => navigateBack()}
+                    onkeydown={(e) => e.key === 'Enter' && navigateBack()}
                     aria-label="View previous periods">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
                     </svg>
                 </button>
                 <button 
+                    type="button"
                     class="navigation-button right-2 {currentOffset === 0 ? 'invisible' : ''}"
                     onclick={() => navigateForward()}
-                    aria-label="View next periods">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    onkeydown={(e) => e.key === 'Enter' && navigateForward()}
+                    aria-label="View next periods"
+                    aria-hidden={currentOffset === 0}>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
                     </svg>
                 </button>
@@ -560,8 +576,12 @@
             <div class="summary-stats mb-3">
                 <div class="grid grid-cols-3 gap-1.5">
                     <!-- Income Card -->
-                    <div class="stat-card flex flex-col items-center justify-center text-center cursor-pointer"
-                         onclick={() => handleStatCardClick('income')}>
+                    <button 
+                        type="button"
+                        class="stat-card flex flex-col items-center justify-center text-center cursor-pointer"
+                        onclick={() => handleStatCardClick('income')}
+                        onkeydown={(e) => e.key === 'Enter' && handleStatCardClick('income')}
+                        aria-label="View income details">
                         <span class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-0.5">Income</span>
                         <div class="flex items-center space-x-1">
                             <div class="w-1 h-1 rounded-full bg-blue-500"></div>
@@ -569,11 +589,15 @@
                                 {formatEuro(selectedBarData.income)}
                             </span>
                         </div>
-                    </div>
+                    </button>
 
                     <!-- Expenses Card -->
-                    <div class="stat-card flex flex-col items-center justify-center text-center cursor-pointer"
-                         onclick={() => handleStatCardClick('expense')}>
+                    <button 
+                        type="button"
+                        class="stat-card flex flex-col items-center justify-center text-center cursor-pointer"
+                        onclick={() => handleStatCardClick('expense')}
+                        onkeydown={(e) => e.key === 'Enter' && handleStatCardClick('expense')}
+                        aria-label="View expense details">
                         <span class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-0.5">Expenses</span>
                         <div class="flex items-center space-x-1">
                             <div class="w-1 h-1 rounded-full bg-red-500"></div>
@@ -581,11 +605,15 @@
                                 {formatEuro(selectedBarData.expenses)}
                             </span>
                         </div>
-                    </div>
+                    </button>
                     
                     <!-- Net Card -->
-                    <div class="stat-card flex flex-col items-center justify-center text-center cursor-pointer"
-                         onclick={() => handleStatCardClick('all')}>
+                    <button 
+                        type="button"
+                        class="stat-card flex flex-col items-center justify-center text-center cursor-pointer"
+                        onclick={() => handleStatCardClick('all')}
+                        onkeydown={(e) => e.key === 'Enter' && handleStatCardClick('all')}
+                        aria-label="View net balance details">
                         <span class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-0.5">Net</span>
                         <div class="flex items-center space-x-1">
                             <div class="w-1 h-1 rounded-full" 
@@ -602,7 +630,7 @@
                                 {formatEuro(selectedBarData.net)}
                             </span>
                         </div>
-                    </div>
+                    </button>
                 </div>
             </div>
 
