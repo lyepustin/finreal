@@ -67,7 +67,7 @@
     }
 
     // Get current display data
-    const currentDisplay = $derived(
+    let currentDisplay = $derived(
         currentIndex === -1 
             ? { 
                 value: totalBalance,
@@ -78,6 +78,14 @@
                 subtitle: banks[currentIndex].name
             }
     );
+
+    // Add state for modal
+    let isModalOpen = $state(false);
+
+    // Function to handle modal close
+    function handleModalClose() {
+        isModalOpen = false;
+    }
 </script>
 
 <div class="account-dashboard">
@@ -114,11 +122,14 @@
                                     out:fly={{ x: direction * -100, duration: 300 }}
                                 >
                                     <!-- Balance -->
-                                    <div class="text-xl font-bold text-gray-800 dark:text-gray-200 leading-none mb-0.5" 
-                                         class:text-red-600={currentDisplay.value < 0} 
-                                         class:dark:text-red-400={currentDisplay.value < 0}>
+                                    <button 
+                                        class="text-xl font-bold text-gray-800 dark:text-gray-200 leading-none mb-0.5 hover:text-blue-600 dark:hover:text-blue-400 transition-colors" 
+                                        class:text-red-600={currentDisplay.value < 0} 
+                                        class:dark:text-red-400={currentDisplay.value < 0}
+                                        onclick={() => isModalOpen = true}
+                                    >
                                         {formatEuro(currentDisplay.value)}
-                                    </div>
+                                    </button>
 
                                     <!-- Subtitle -->
                                     <div class="text-[10px] text-gray-500 dark:text-gray-400 leading-none">
@@ -174,6 +185,76 @@
         </div>
     </div>
 </div>
+
+<!-- Account Details Modal -->
+{#if isModalOpen}
+<div 
+    class="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6 bg-transparent"
+    role="dialog"
+    aria-modal="true"
+>
+    <!-- Backdrop -->
+    <div 
+        class="fixed inset-0 bg-black/50 backdrop-blur-sm" 
+        aria-hidden="true"
+        onclick={handleModalClose}
+        onkeydown={(e) => e.key === 'Escape' && handleModalClose()}
+        role="presentation"
+    ></div>
+
+    <!-- Modal Content -->
+    <div class="relative bg-white dark:bg-slate-900 w-[calc(100%-2rem)] sm:w-[500px] max-h-[calc(100vh-4rem)] flex flex-col overflow-hidden shadow-xl rounded-2xl">
+        <div class="flex-none flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+                Account Balances
+            </h2>
+            <button
+                type="button"
+                class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                onclick={handleModalClose}
+                aria-label="Close account details"
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+
+        <div class="flex-1 overflow-y-auto p-4 sm:p-6">
+            <!-- Total Balance -->
+            <div class="mb-6">
+                <div class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
+                    Total Balance
+                </div>
+                <div class="text-2xl font-bold {totalBalance < 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-gray-100'}">
+                    {formatEuro(totalBalance)}
+                </div>
+            </div>
+
+            <!-- Individual Bank Accounts -->
+            <div class="space-y-4">
+                {#each banks as bank}
+                    <div class="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4">
+                        <div class="flex items-center justify-between">
+                            <div class="text-sm font-medium text-gray-900 dark:text-gray-100">
+                                {bank.name}
+                            </div>
+                            <div class="text-lg font-semibold {bank.balance < 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-gray-100'}">
+                                {formatEuro(bank.balance)}
+                            </div>
+                        </div>
+                        {#if bank.accountCounts?.bank_account}
+                            <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                {bank.accountCounts.bank_account} account{bank.accountCounts.bank_account === 1 ? '' : 's'}
+                            </div>
+                        {/if}
+                    </div>
+                {/each}
+            </div>
+        </div>
+    </div>
+</div>
+{/if}
 
 <style>
     .account-dashboard {
