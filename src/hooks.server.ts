@@ -86,9 +86,20 @@ const authGuard: Handle = async ({ event, resolve }) => {
   const isApiRoute = event.url.pathname.startsWith('/api/')
   const isAuthRoute = event.url.pathname.startsWith('/auth/') || event.url.pathname === '/auth'
   const isSignOutRoute = event.url.pathname === '/auth/signout'
+  const isStaticAsset = event.url.pathname.startsWith('/og-image.png') || 
+                       event.url.pathname.startsWith('/favicon') ||
+                       event.url.pathname.startsWith('/apple-touch-icon') ||
+                       event.url.pathname.startsWith('/android-chrome') ||
+                       event.url.pathname.startsWith('/site.webmanifest') ||
+                       event.url.pathname.startsWith('/safari-pinned-tab.svg')
 
   // Allow sign-out requests to proceed
   if (isSignOutRoute && event.request.method === 'POST') {
+    return resolve(event)
+  }
+
+  // Allow access to static assets
+  if (isStaticAsset) {
     return resolve(event)
   }
 
