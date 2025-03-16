@@ -8,5 +8,9 @@ export default defineConfig({
 		alias: {
 			$lib: path.resolve('./src/lib')
 		}
+	},
+	server: {
+		host: '0.0.0.0',
+		allowedHosts: ['finreal.ddns.net', 'localhost']
 	}
 });
