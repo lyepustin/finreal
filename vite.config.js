@@ -8,13 +8,18 @@ export default defineConfig({
     port: 5173,
     strictPort: true,
     hmr: {
-      clientPort: 443  // This helps with reverse proxy setups
+      clientPort: 443,
+      host: 'finreal.ddns.net'
     },
     fs: {
       allow: ['.']
     },
     proxy: {},
-    cors: true,
+    cors: {
+      origin: ['https://finreal.ddns.net', 'http://localhost:5173'],
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+      credentials: true
+    },
     watch: {
       usePolling: true
     },
