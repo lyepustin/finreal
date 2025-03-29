@@ -156,10 +156,13 @@
     }
 
     function updateAmount(index: number, newAmount: number) {
+        // Get the original transaction sign (1 for positive, -1 for negative)
+        const transactionSign = Math.sign(transactionAmount) || -1; // Default to -1 if 0
+        
         // Convert to absolute value for storage
         const absAmount = Math.abs(newAmount);
-        // Make it negative as all amounts in categories should be negative
-        const finalAmount = -absAmount;
+        // Apply the original transaction's sign
+        const finalAmount = absAmount * transactionSign;
         
         selectedCategories[index].amount = finalAmount;
         selectedCategories = [...selectedCategories];
@@ -174,8 +177,9 @@
 
     function validateAmounts() {
         const totalAmount = selectedCategories.reduce((sum, cat) => sum + cat.amount, 0);
-        if (Math.abs(totalAmount - transactionAmount) > 0.01) {
-            errorMessage = `Amounts don't match. Difference: ${(transactionAmount - totalAmount).toFixed(2)}€`;
+        // Compare absolute values to avoid sign issues
+        if (Math.abs(Math.abs(totalAmount) - Math.abs(transactionAmount)) > 0.01) {
+            errorMessage = `Amounts don't match. Difference: ${(Math.abs(transactionAmount) - Math.abs(totalAmount)).toFixed(2)}€`;
             return false;
         }
         errorMessage = null;
