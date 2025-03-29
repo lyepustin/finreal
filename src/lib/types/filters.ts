@@ -25,6 +25,7 @@ export type TransactionFilterState = {
         value: 'month' | 'week';
     };
     searchTerm: string;
+    pageSize: number;
 }
 
 // Define AnalyticsFilterState to match TransactionFilterState structure
@@ -73,7 +74,8 @@ export const DEFAULT_FILTER_STATE: TransactionFilterState = {
         column: 'date',
         direction: 'desc'
     },
-    searchTerm: ''
+    searchTerm: '',
+    pageSize: 30
 }; 
 
 export const DEFAULT_ANALYTICS_FILTER_STATE: AnalyticsFilterState = {
