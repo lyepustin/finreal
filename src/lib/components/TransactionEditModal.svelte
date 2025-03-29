@@ -31,6 +31,8 @@
     let transactionAmount = $state(0);
     let isLoading = $state(false);
     let errorMessage = $state<string | null>(null);
+    // Add state for magic categorization loading
+    let isMagicLoading = $state(false);
 
     // Add new state for category selection UI
     let isSelectingCategory = $state<number | null>(null); // Index of category being edited
@@ -208,6 +210,65 @@
         editingCategoryIndex = null;
         selectedCategoryForSubcategories = null;
     }
+
+    async function handleMagicCategorization() {
+        if (!transaction || !categories?.length) return;
+        
+        try {
+            isMagicLoading = true;
+            errorMessage = null;
+            
+            const description = selectedDescription || transaction.description;
+            
+            // Call OpenAI API for prediction
+            const response = await fetch('/api/transactions/predict-category', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    transactionDescription: description
+                })
+            });
+            
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to auto-categorize transaction');
+            }
+            
+            const { data } = await response.json();
+            
+            if (!data || typeof data.categoryId !== 'number') {
+                throw new Error('Invalid response from categorization service');
+            }
+            
+            // Update the first category with the prediction
+            if (selectedCategories.length > 0) {
+                // If we have multiple categories, update just the first one
+                selectedCategories = [
+                    {
+                        categoryId: data.categoryId,
+                        subcategoryId: data.subcategoryId,
+                        amount: selectedCategories[0].amount
+                    },
+                    ...selectedCategories.slice(1)
+                ];
+            } else if (categories.length > 0) {
+                // If no categories are set, create one with the full amount
+                selectedCategories = [{
+                    categoryId: data.categoryId,
+                    subcategoryId: data.subcategoryId,
+                    amount: transactionAmount
+                }];
+            }
+            
+        } catch (error) {
+            console.error('Error in magic categorization:', error);
+            errorMessage = error instanceof Error ? error.message : 'Auto-categorization failed';
+        } finally {
+            isMagicLoading = false;
+        }
+    }
 </script>
 
 {#if isOpen}
@@ -293,6 +354,29 @@
                             </svg>
                         </button>
                     {/if}
+                </div>
+                
+                <!-- Magic Button -->
+                <div class="mt-2">
+                    <button
+                        type="button"
+                        onclick={handleMagicCategorization}
+                        disabled={isMagicLoading}
+                        class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700 dark:bg-purple-700 dark:hover:bg-purple-600 transition-colors duration-200 disabled:opacity-50"
+                    >
+                        {#if isMagicLoading}
+                            <svg class="animate-spin -ml-1 mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            Processing...
+                        {:else}
+                            <svg class="mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M12 2l1.813 5.603a2 2 0 0 0 1.897 1.397h5.87l-4.741 3.47a2 2 0 0 0-.725 2.227l1.813 5.603-4.741-3.47a2 2 0 0 0-2.352 0l-4.741 3.47 1.813-5.603a2 2 0 0 0-.725-2.227l-4.741-3.47h5.87a2 2 0 0 0 1.897-1.397L12 2z"/>
+                            </svg>
+                            Magic
+                        {/if}
+                    </button>
                 </div>
             </div>
 
