@@ -36,6 +36,8 @@
     let isAutoCycling = $state(false);
     let autoCycleInterval: number | null = $state(null);
     let preventAutoStart = $state(false);
+    let isAutoCycleInProgress = $state(false);
+    let userHasInteracted = $state(false);
 
     // Colors for the chart (using softer pastel colors)
     const COLORS = [
@@ -290,6 +292,9 @@
     function handleClick(event: MouseEvent) {
         if (!chartInstance) return;
 
+        // Mark that user has interacted with the chart
+        userHasInteracted = true;
+        
         // Get click position relative to the canvas
         const rect = canvas.getBoundingClientRect();
         const x = event.clientX - rect.left;
@@ -302,9 +307,8 @@
         );
 
         if (clickedArea) {
-            // Stop auto cycling when user interacts
-            stopAutoCycle();
-            preventAutoStart = true;
+            // Permanently stop auto cycling
+            permanentlyStopAutoCycle();
 
             const index = clickedArea.emoji.index;
             if (selectedCategory?.id !== data[index].id) {
@@ -317,9 +321,8 @@
         // Only handle other clicks if they're outside the chart canvas
         if (canvas.contains(event.target as Node)) return;
         
-        // Stop auto cycling when user interacts and prevent it from restarting
-        stopAutoCycle();
-        preventAutoStart = true;
+        // Permanently stop auto cycling for any chart interaction
+        permanentlyStopAutoCycle();
         
         // If we clicked outside and there's a selection, deselect
         if (selectedCategory) {
@@ -328,12 +331,24 @@
         }
     }
 
+    // Function to permanently stop auto cycle
+    function permanentlyStopAutoCycle() {
+        stopAutoCycle();
+        userHasInteracted = true;
+        preventAutoStart = true;
+    }
+
     // Auto cycle through categories
     function startAutoCycle() {
-        if (!data || data.length === 0 || !isChartReady) return;
+        // Never start if user has interacted
+        if (!data || data.length === 0 || !isChartReady || isAutoCycleInProgress || userHasInteracted) return;
         
         isAutoCycling = true;
+        isAutoCycleInProgress = true;
+
         let currentIndex = 0;
+        let cycleCount = 0;
+        const totalCycles = data.length;
 
         // Initial 5-second delay before starting any movement
         setTimeout(() => {
@@ -343,7 +358,14 @@
             // Set up the interval to cycle through categories
             autoCycleInterval = setInterval(() => {
                 currentIndex = (currentIndex + 1) % data.length;
+                cycleCount++;
+                
                 selectCategory(currentIndex);
+                
+                // Check if we've completed one full cycle
+                if (cycleCount >= totalCycles) {
+                    stopAutoCycle();
+                }
             }, 1500) as unknown as number;
         }, 2500); // 5-second delay before starting the auto-cycle
     }
@@ -354,6 +376,7 @@
             autoCycleInterval = null;
         }
         isAutoCycling = false;
+        isAutoCycleInProgress = false;
         preventAutoStart = true; // Prevent auto-cycle from restarting
     }
 
@@ -387,7 +410,8 @@
 
     // Add effect to watch for triggerAutoCycle changes
     $effect(() => {
-        if (triggerAutoCycle > 0 && !isAutoCycling && isChartReady) {
+        // Never restart auto cycle if user has interacted
+        if (triggerAutoCycle > 0 && !isAutoCycling && isChartReady && !userHasInteracted) {
             preventAutoStart = false;
             startAutoCycle();
         }

@@ -31,6 +31,13 @@
     let transactionAmount = $state(0);
     let isLoading = $state(false);
     let errorMessage = $state<string | null>(null);
+    // Add state for magic categorization loading
+    let isMagicLoading = $state(false);
+
+    // Add state for rule creation
+    let isRuleModalOpen = $state(false);
+    let isCreatingRule = $state(false);
+    let ruleCreationResult = $state<{ pattern: string; count: number } | null>(null);
 
     // Add new state for category selection UI
     let isSelectingCategory = $state<number | null>(null); // Index of category being edited
@@ -156,10 +163,13 @@
     }
 
     function updateAmount(index: number, newAmount: number) {
+        // Get the original transaction sign (1 for positive, -1 for negative)
+        const transactionSign = Math.sign(transactionAmount) || -1; // Default to -1 if 0
+        
         // Convert to absolute value for storage
         const absAmount = Math.abs(newAmount);
-        // Make it negative as all amounts in categories should be negative
-        const finalAmount = -absAmount;
+        // Apply the original transaction's sign
+        const finalAmount = absAmount * transactionSign;
         
         selectedCategories[index].amount = finalAmount;
         selectedCategories = [...selectedCategories];
@@ -174,8 +184,9 @@
 
     function validateAmounts() {
         const totalAmount = selectedCategories.reduce((sum, cat) => sum + cat.amount, 0);
-        if (Math.abs(totalAmount - transactionAmount) > 0.01) {
-            errorMessage = `Amounts don't match. Difference: ${(transactionAmount - totalAmount).toFixed(2)}€`;
+        // Compare absolute values to avoid sign issues
+        if (Math.abs(Math.abs(totalAmount) - Math.abs(transactionAmount)) > 0.01) {
+            errorMessage = `Amounts don't match. Difference: ${(Math.abs(transactionAmount) - Math.abs(totalAmount)).toFixed(2)}€`;
             return false;
         }
         errorMessage = null;
@@ -203,6 +214,123 @@
         categorySelectionModalOpen = false;
         editingCategoryIndex = null;
         selectedCategoryForSubcategories = null;
+    }
+
+    async function handleMagicCategorization() {
+        if (!transaction || !categories?.length) return;
+        
+        try {
+            isMagicLoading = true;
+            errorMessage = null;
+            
+            const description = selectedDescription || transaction.description;
+            
+            // Call OpenAI API for prediction
+            const response = await fetch('/api/transactions/predict-category', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    transactionDescription: description
+                })
+            });
+            
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to auto-categorize transaction');
+            }
+            
+            const { data } = await response.json();
+            
+            if (!data || typeof data.categoryId !== 'number') {
+                throw new Error('Invalid response from categorization service');
+            }
+            
+            // Update the first category with the prediction
+            if (selectedCategories.length > 0) {
+                // If we have multiple categories, update just the first one
+                selectedCategories = [
+                    {
+                        categoryId: data.categoryId,
+                        subcategoryId: data.subcategoryId,
+                        amount: selectedCategories[0].amount
+                    },
+                    ...selectedCategories.slice(1)
+                ];
+            } else if (categories.length > 0) {
+                // If no categories are set, create one with the full amount
+                selectedCategories = [{
+                    categoryId: data.categoryId,
+                    subcategoryId: data.subcategoryId,
+                    amount: transactionAmount
+                }];
+            }
+            
+        } catch (error) {
+            console.error('Error in magic categorization:', error);
+            errorMessage = error instanceof Error ? error.message : 'Auto-categorization failed';
+        } finally {
+            isMagicLoading = false;
+        }
+    }
+
+    async function handleCreateRule() {
+        if (!selectedDescription || !selectedCategories.length) return;
+
+        try {
+            isCreatingRule = true;
+            errorMessage = null;
+
+            // Create the rule
+            const response = await fetch('/api/rules', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    pattern: selectedDescription,
+                    category_id: selectedCategories[0].categoryId,
+                    subcategory_id: selectedCategories[0].subcategoryId
+                })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to create rule');
+            }
+
+            const { data: rule } = await response.json();
+
+            // Apply the rule
+            const applyResponse = await fetch(`/api/rules/${rule.id}/apply`, {
+                method: 'POST'
+            });
+
+            if (!applyResponse.ok) {
+                const errorData = await applyResponse.json();
+                throw new Error(errorData.error || 'Failed to apply rule');
+            }
+
+            const { data: applyResult } = await applyResponse.json();
+            
+            // Show the result
+            ruleCreationResult = {
+                pattern: selectedDescription,
+                count: applyResult.affectedCount
+            };
+
+        } catch (error) {
+            console.error('Error creating/applying rule:', error);
+            errorMessage = error instanceof Error ? error.message : 'Failed to create/apply rule';
+            isCreatingRule = false;
+        }
+    }
+
+    function closeRuleResult() {
+        isRuleModalOpen = false;
+        isCreatingRule = false;
+        ruleCreationResult = null;
     }
 </script>
 
@@ -290,6 +418,29 @@
                         </button>
                     {/if}
                 </div>
+                
+                <!-- Magic Button -->
+                <div class="mt-2">
+                    <button
+                        type="button"
+                        onclick={handleMagicCategorization}
+                        disabled={isMagicLoading}
+                        class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700 dark:bg-purple-700 dark:hover:bg-purple-600 transition-colors duration-200 disabled:opacity-50"
+                    >
+                        {#if isMagicLoading}
+                            <svg class="animate-spin -ml-1 mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            Processing...
+                        {:else}
+                            <svg class="mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M12 2l1.813 5.603a2 2 0 0 0 1.897 1.397h5.87l-4.741 3.47a2 2 0 0 0-.725 2.227l1.813 5.603-4.741-3.47a2 2 0 0 0-2.352 0l-4.741 3.47 1.813-5.603a2 2 0 0 0-.725-2.227l-4.741-3.47h5.87a2 2 0 0 0 1.897-1.397L12 2z"/>
+                            </svg>
+                            Magic
+                        {/if}
+                    </button>
+                </div>
             </div>
 
             <!-- Categories -->
@@ -367,6 +518,18 @@
 
         <!-- Footer -->
         <div class="p-4 sm:p-6 border-t border-gray-200 flex justify-end gap-3">
+            <button 
+                type="button"
+                onclick={() => isRuleModalOpen = true}
+                class="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 dark:text-gray-300 dark:bg-slate-800 dark:border-gray-600 dark:hover:bg-slate-700"
+            >
+                <svg class="mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+                    <path d="M3.3 7l8.7 5 8.7-5"/>
+                    <path d="M12 22V12"/>
+                </svg>
+                Create Rule
+            </button>
             <button 
                 type="button"
                 onclick={handleSave}
@@ -494,6 +657,172 @@
                             <span class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{subcat.name}</span>
                         </button>
                     {/each}
+                </div>
+            {/if}
+        </div>
+    </div>
+</div>
+{/if}
+
+<!-- Rule Creation Modal -->
+{#if isRuleModalOpen}
+<div 
+    class="fixed inset-0 z-[70] flex items-center justify-center"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="rule-creation-title"
+>
+    <!-- Backdrop -->
+    <button
+        type="button"
+        class="absolute inset-0 bg-black/50 backdrop-blur-sm"
+        onclick={() => {
+            isRuleModalOpen = false;
+            isCreatingRule = false;
+            ruleCreationResult = null;
+        }}
+        aria-label="Close rule creation"
+    ></button>
+
+    <!-- Modal Content -->
+    <div class="relative bg-white dark:bg-slate-900 w-[calc(100%-2rem)] sm:w-[400px] max-h-[50vh] m-4 flex flex-col overflow-hidden shadow-xl rounded-2xl">
+        <!-- Header -->
+        <div class="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+            <h2 id="rule-creation-title" class="text-lg font-semibold text-gray-900 dark:text-white">
+                {isCreatingRule ? 'Creating Rule...' : 'Rule Creation'}
+            </h2>
+            <div class="flex items-center gap-2">
+                <button 
+                    type="button"
+                    class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                    onclick={() => {
+                        isRuleModalOpen = false;
+                        isCreatingRule = false;
+                        ruleCreationResult = null;
+                    }}
+                    aria-label="Close rule creation"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Content -->
+        <div class="flex-1 overflow-y-auto ">
+            {#if !ruleCreationResult}
+                <!-- Rule Creation Form -->
+                <div class="p-4">
+                    <label for="rule-pattern" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Rule Pattern
+                    </label>
+                    <input
+                        id="rule-pattern"
+                        type="text"
+                        bind:value={selectedDescription}
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                        placeholder="Enter rule pattern"
+                    />
+                </div>
+
+                <!-- Category Selection -->
+                <div class="p-4">
+                    <label for="rule-category" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Category
+                    </label>
+                    <select
+                        id="rule-category"
+                        bind:value={selectedCategories[0].categoryId}
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                        onchange={(e) => {
+                            const categoryId = Number(e.currentTarget.value);
+                            selectedCategories = selectedCategories.map(cat =>
+                                cat.categoryId === categoryId ? cat : { ...cat, categoryId }
+                            );
+                        }}
+                    >
+                        {#each categories || [] as cat}
+                            <option value={cat.id}>{cat.name}</option>
+                        {/each}
+                    </select>
+                </div>
+
+                <!-- Subcategory Selection -->
+                <div class="p-4">
+                    <label for="rule-subcategory" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Subcategory
+                    </label>
+                    <select
+                        id="rule-subcategory"
+                        bind:value={selectedCategories[0].subcategoryId}
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                        onchange={(e) => {
+                            const subcategoryId = e.currentTarget.value ? Number(e.currentTarget.value) : null;
+                            selectedCategories = selectedCategories.map(cat =>
+                                cat.categoryId === selectedCategories[0].categoryId ? { ...cat, subcategoryId } : cat
+                            );
+                        }}
+                    >
+                        <option value={null}>Select a subcategory</option>
+                        {#each categories?.find(c => c.id === selectedCategories[0].categoryId)?.subcategories || [] as subcat}
+                            <option value={subcat.id}>{subcat.name}</option>
+                        {/each}
+                    </select>
+                </div>
+
+                <!-- Create Rule Button -->
+                <div class="p-4 border-t border-gray-200 flex justify-end">
+                    <button
+                        type="button"
+                        onclick={handleCreateRule}
+                        disabled={isCreatingRule}
+                        class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                    >
+                        {#if isCreatingRule}
+                            <svg class="animate-spin -ml-1 mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            Creating...
+                        {:else}
+                            Create Rule
+                        {/if}
+                    </button>
+                </div>
+            {:else}
+                <!-- Rule Creation Result -->
+                <div class="p-4">
+                    <div class="flex flex-col items-center text-center">
+                        <div class="mb-4 p-2 rounded-full bg-green-100 dark:bg-green-900/20">
+                            <svg class="h-8 w-8 text-green-600 dark:text-green-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                                <polyline points="22 4 12 14.01 9 11.01"/>
+                            </svg>
+                        </div>
+                        <h3 class="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Rule Created Successfully!</h3>
+                        <div class="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4 w-full mb-4">
+                            <div class="mb-3">
+                                <span class="text-sm font-medium text-gray-500 dark:text-gray-400">Pattern:</span>
+                                <p class="mt-1 text-gray-900 dark:text-white font-medium">{ruleCreationResult?.pattern}</p>
+                            </div>
+                            <div>
+                                <span class="text-sm font-medium text-gray-500 dark:text-gray-400">Transactions Updated:</span>
+                                <p class="mt-1 text-gray-900 dark:text-white font-medium">{ruleCreationResult?.count} transaction{ruleCreationResult?.count === 1 ? '' : 's'}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Close Rule Button -->
+                <div class="p-4 border-t border-gray-200 dark:border-gray-700 flex justify-end">
+                    <button
+                        type="button"
+                        onclick={closeRuleResult}
+                        class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
+                    >
+                        OK, Got it!
+                    </button>
                 </div>
             {/if}
         </div>
