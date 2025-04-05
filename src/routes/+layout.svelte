@@ -121,44 +121,44 @@
 
 <!-- Mobile Bottom Navigation -->
 <nav class="fixed bottom-0 left-0 w-full bg-white border-t border-gray-200 sm:hidden dark:bg-gray-800 dark:border-gray-700 z-50">
-  <div class="flex justify-around items-center h-16">
-    <a href="/" class="flex flex-col items-center px-4 py-2 text-gray-600 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-500">
-      <svg class="w-6 h-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+  <div class="flex justify-between items-center min-h-[5rem] px-2 pb-safe">
+    <a href="/" class="flex flex-col items-center justify-center flex-1 min-w-[4rem] p-1 {isActive('/') ? 'text-blue-600 dark:text-blue-500' : 'text-gray-600 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-500'}">
+      <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
       </svg>
       <span class="text-xs mt-1">Home</span>
     </a>
-    <a href="/transactions" class="flex flex-col items-center px-4 py-2 text-gray-600 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-500">
-      <svg class="w-6 h-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <a href="/transactions" class="flex flex-col items-center justify-center flex-1 min-w-[4rem] p-1 text-gray-600 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-500">
+      <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
       </svg>
-      <span class="text-xs mt-1">Transactions</span>
+      <span class="text-xs mt-1">Deals</span>
     </a>
-    <a href="/manage/categories" class="flex flex-col items-center px-4 py-2 text-gray-600 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-500">
-      <svg class="w-6 h-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <a href="/manage/categories" class="flex flex-col items-center justify-center flex-1 min-w-[4rem] p-1 text-gray-600 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-500">
+      <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/>
       </svg>
-      <span class="text-xs mt-1">Categories</span>
+      <span class="text-xs mt-1">Groups</span>
     </a>
-    <a href="/manage/rules" class="flex flex-col items-center px-4 py-2 text-gray-600 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-500">
-      <svg class="w-6 h-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <a href="/manage/rules" class="flex flex-col items-center justify-center flex-1 min-w-[4rem] p-1 text-gray-600 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-500">
+      <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/>
       </svg>
       <span class="text-xs mt-1">Rules</span>
     </a>
     {#if session}
       <button 
-        class="flex flex-col items-center px-4 py-2 text-gray-600 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-500"
+        class="flex flex-col items-center justify-center flex-1 min-w-[4rem] p-1 text-gray-600 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-500"
         onclick={handleDirectSignOut}
       >
-        <svg class="w-6 h-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2M12 7a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"/>
         </svg>
-        <span class="text-xs mt-1">Sign out</span>
+        <span class="text-xs mt-1">Exit</span>
       </button>
     {:else}
-      <a href="/auth" class="flex flex-col items-center px-4 py-2 text-gray-600 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-500">
-        <svg class="w-6 h-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <a href="/auth" class="flex flex-col items-center justify-center flex-1 min-w-[4rem] p-1 text-gray-600 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-500">
+        <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2M12 7a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"/>
         </svg>
         <span class="text-xs mt-1">Sign in</span>
@@ -166,6 +166,15 @@
     {/if}
   </div>
 </nav>
+
+<style>
+  /* Add safe area padding for iOS devices */
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 1rem);
+    padding-left: env(safe-area-inset-left, 0.5rem);
+    padding-right: env(safe-area-inset-right, 0.5rem);
+  }
+</style>
 
 <!-- Sign Out Popup - Only shown when using the popup flow -->
 {#if showSignOutPopup}
