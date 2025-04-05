@@ -19,7 +19,7 @@
     const df = new DateFormatter("en-US", {
         month: "short",
         day: "numeric",
-        year: "numeric"
+        year: "2-digit"
     });
 
     const monthFormatter = new DateFormatter("en-US", {
