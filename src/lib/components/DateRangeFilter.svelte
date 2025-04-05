@@ -172,24 +172,22 @@
                     {/if}
                 </Button>
             </Popover.Trigger>
-            <Popover.Content class="w-auto p-4">
-                <div class="grid gap-4">
-                    <div class="grid gap-2">
-                        <div class="grid grid-cols-2 gap-2">
-                            <Calendar 
-                                bind:value={fromDate}
-                                mode="single"
-                                initialFocus
-                                maxValue={toDate}
-                            />
-                            <Calendar
-                                bind:value={toDate}
-                                mode="single"
-                                initialFocus
-                                minValue={fromDate}
-                            />
-                        </div>
-                    </div>
+            <Popover.Content class="w-[280px] p-3">
+                <div class="flex flex-col gap-3">
+                    <Calendar 
+                        bind:value={fromDate}
+                        mode="single"
+                        initialFocus
+                        maxValue={toDate}
+                        class="rounded-md border"
+                    />
+                    <Calendar
+                        bind:value={toDate}
+                        mode="single"
+                        initialFocus
+                        minValue={fromDate}
+                        class="rounded-md border"
+                    />
                 </div>
             </Popover.Content>
         </Popover.Root>
