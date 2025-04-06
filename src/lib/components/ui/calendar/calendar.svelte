@@ -2,6 +2,8 @@
 	import { Calendar as CalendarPrimitive } from "bits-ui";
 	import * as Calendar from "./index.js";
 	import { cn } from "$lib/utils.js";
+	import ChevronLeft from "lucide-svelte/icons/chevron-left";
+	import ChevronRight from "lucide-svelte/icons/chevron-right";
 
 	type $$Props = CalendarPrimitive.Props;
 
@@ -13,6 +15,22 @@
 
 	let className: $$Props["class"] = undefined;
 	export { className as class };
+
+	function handlePrevYear(e: CustomEvent) {
+		const currentDate = value || placeholder;
+		if (currentDate) {
+			const newDate = currentDate.subtract({ years: 1 });
+			value = newDate;
+		}
+	}
+
+	function handleNextYear(e: CustomEvent) {
+		const currentDate = value || placeholder;
+		if (currentDate) {
+			const newDate = currentDate.add({ years: 1 });
+			value = newDate;
+		}
+	}
 </script>
 
 <CalendarPrimitive.Root
@@ -26,9 +44,33 @@
 	let:weekdays
 >
 	<Calendar.Header>
-		<Calendar.PrevButton />
-		<Calendar.Heading />
-		<Calendar.NextButton />
+		<div class="flex items-center justify-between w-full">
+			<div class="flex items-center gap-1">
+				<button
+					class="inline-flex items-center justify-center rounded-md text-sm font-medium h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100"
+					on:click={handlePrevYear}
+				>
+					<div class="flex">
+						<ChevronLeft class="h-4 w-4" />
+						<ChevronLeft class="h-4 w-4 -ml-2" />
+					</div>
+				</button>
+				<Calendar.PrevButton />
+			</div>
+			<Calendar.Heading />
+			<div class="flex items-center gap-1">
+				<Calendar.NextButton />
+				<button
+					class="inline-flex items-center justify-center rounded-md text-sm font-medium h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100"
+					on:click={handleNextYear}
+				>
+					<div class="flex">
+						<ChevronRight class="h-4 w-4" />
+						<ChevronRight class="h-4 w-4 -ml-2" />
+					</div>
+				</button>
+			</div>
+		</div>
 	</Calendar.Header>
 	<Calendar.Months>
 		{#each months as month}

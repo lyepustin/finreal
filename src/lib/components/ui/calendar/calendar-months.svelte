@@ -9,7 +9,7 @@
 </script>
 
 <div
-	class={cn("mt-4 flex flex-col space-y-4 sm:flex-row sm:space-x-4 sm:space-y-0", className)}
+	class={cn("mt-4 flex flex-col gap-8 md:flex-row md:gap-4 md:space-y-0", className)}
 	{...$$restProps}
 >
 	<slot />
