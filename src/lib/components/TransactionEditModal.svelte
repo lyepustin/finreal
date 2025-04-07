@@ -247,29 +247,16 @@
                 throw new Error('Invalid response from categorization service');
             }
             
-            // Update the first category with the prediction
-            if (selectedCategories.length > 0) {
-                // If we have multiple categories, update just the first one
-                selectedCategories = [
-                    {
-                        categoryId: data.categoryId,
-                        subcategoryId: data.subcategoryId,
-                        amount: selectedCategories[0].amount
-                    },
-                    ...selectedCategories.slice(1)
-                ];
-            } else if (categories.length > 0) {
-                // If no categories are set, create one with the full amount
-                selectedCategories = [{
-                    categoryId: data.categoryId,
-                    subcategoryId: data.subcategoryId,
-                    amount: transactionAmount
-                }];
-            }
-            
+            // Update with the predicted category
+            selectedCategories = [{
+                categoryId: data.categoryId,
+                subcategoryId: data.subcategoryId,
+                amount: transactionAmount
+            }];
+
         } catch (error) {
             console.error('Error in magic categorization:', error);
-            errorMessage = error instanceof Error ? error.message : 'Auto-categorization failed';
+            errorMessage = error instanceof Error ? error.message : 'Failed to auto-categorize transaction';
         } finally {
             isMagicLoading = false;
         }
@@ -377,6 +364,42 @@
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                     <span class="text-sm font-medium">{errorMessage}</span>
+                </div>
+            </div>
+        {/if}
+
+        <!-- Transaction Details -->
+        {#if transaction}
+            <div class="p-4 sm:px-6 border-b border-gray-200 dark:border-gray-700">
+                <div class="grid grid-cols-2 gap-4">
+                    <!-- Date -->
+                    <div>
+                        <span class="text-xs font-medium text-gray-500 dark:text-gray-400 block mb-1">Date</span>
+                        <span class="text-sm font-medium text-gray-700 dark:text-gray-100">
+                            {new Date(transaction.operation_date).toLocaleDateString()}
+                        </span>
+                    </div>
+                    <!-- Bank -->
+                    <div>
+                        <span class="text-xs font-medium text-gray-500 dark:text-gray-400 block mb-1">Bank</span>
+                        <span class="text-sm font-medium text-gray-700 dark:text-gray-100">
+                            {transaction.account.bank.name}
+                        </span>
+                    </div>
+                    <!-- Account Type -->
+                    <div>
+                        <span class="text-xs font-medium text-gray-500 dark:text-gray-400 block mb-1">Account Type</span>
+                        <span class="text-sm font-medium text-gray-700 dark:text-gray-100">
+                            {transaction.account.account_type.replace('_', ' ').replace("ACCOUNT", "").replace("CARD", "")}
+                        </span>
+                    </div>
+                    <!-- Account Number -->
+                    <div>
+                        <span class="text-xs font-medium text-gray-500 dark:text-gray-400 block mb-1">Account</span>
+                        <span class="text-sm font-medium text-gray-700 dark:text-gray-100">
+                            {transaction.account.account_number}
+                        </span>
+                    </div>
                 </div>
             </div>
         {/if}
