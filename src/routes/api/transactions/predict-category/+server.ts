@@ -45,36 +45,13 @@ export const POST: RequestHandler = async ({ request, locals: { supabase } }) =>
             throw categoriesError;
         }
         
-        // Get rules
-        const { data: rulesData, error: rulesError } = await supabase
-            .from('transaction_rules')
-            .select(`
-                id,
-                pattern,
-                category_id,
-                subcategory_id
-            `)
-            .eq('user_id', session.user.id)
-            .order('category_id');
-        
-        if (rulesError) {
-            throw rulesError;
-        }
-        
         // Format categories properly
         const categories = categoriesData as Category[];
-        
-        // Format rules
-        const rules = rulesData.map(rule => ({
-            categoryId: rule.category_id,
-            rule: rule.pattern
-        }));
         
         // Call the OpenAI service to predict the category
         const prediction = await predictTransactionCategory(
             transactionDescription,
-            categories,
-            rules
+            categories
         );
         
         return json({

@@ -1,38 +1,31 @@
 import { OPENAI_API_KEY } from '$env/static/private';
-import type { Category, SubCategory } from '$lib/types';
-
-type CategoryWithRules = {
-    id: number;
-    name: string;
-    rules?: string[];
-    subcategories: SubCategory[];
-};
+import type { Category } from '$lib/types';
 
 /**
  * Sends a request to OpenAI to get category prediction for a transaction
  */
 export async function predictTransactionCategory(
     description: string,
-    categories: Category[],
-    rules: {
-        categoryId: number;
-        rule: string;
-    }[]
+    categories: Category[]
 ): Promise<{ categoryId: number; subcategoryId: number | null }> {
     try {
-        // Organize categories and rules
-        const categoriesWithRules: CategoryWithRules[] = categories.map(category => {
-            const categoryRules = rules
-                .filter(r => r.categoryId === category.id)
-                .map(r => r.rule);
-            
-            return {
-                id: category.id,
-                name: category.name,
-                rules: categoryRules.length > 0 ? categoryRules : undefined,
-                subcategories: category.subcategories || []
-            };
-        });
+        // Format categories into a more readable structure
+        const formattedCategories = categories.map(cat => ({
+            id: cat.id,
+            name: cat.name,
+            subcategories: cat.subcategories?.map(sub => ({
+                id: sub.id,
+                name: sub.name
+            })) || []
+        }));
+
+        // Create a human-readable list of categories
+        const categoryList = formattedCategories.map(cat => {
+            const subcatList = cat.subcategories.length > 0 
+                ? `\n    Subcategories:\n${cat.subcategories.map(sub => `      - ${sub.name} (id: ${sub.id})`).join('\n')}`
+                : '';
+            return `- ${cat.name} (id: ${cat.id})${subcatList}`;
+        }).join('\n');
 
         // Prepare the chat completion prompt
         const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -46,27 +39,30 @@ export async function predictTransactionCategory(
                 messages: [
                     {
                         role: 'system',
-                        content: 'You are a financial categorization assistant. Your task is to classify a transaction into the most appropriate category and subcategory based on its description.'
+                        content: `You are a financial transaction classifier. Your task is to analyze a transaction description and choose the most appropriate category and subcategory from the provided options. Choose exactly one category and optionally one subcategory if available.
+
+Rules:
+1. Always respond with a valid category ID from the list
+2. Only use subcategory IDs that belong to the chosen category
+3. If no appropriate subcategory exists, return null for subcategoryId
+4. Respond only with the JSON object, no explanation needed`
                     },
                     {
                         role: 'user',
-                        content: `
-                        I need to categorize the following transaction: "${description}"
-                        
-                        Here are the available categories and subcategories:
-                        ${JSON.stringify(categoriesWithRules, null, 2)}
-                        
-                        Please respond with only a JSON object in this exact format:
-                        {
-                          "categoryId": number,
-                          "subcategoryId": number or null,
-                          "reasoning": "brief explanation"
-                        }
-                        `
+                        content: `Transaction description: "${description}"
+
+Available Categories:
+${categoryList}
+
+Respond with only a JSON object in this format:
+{
+  "categoryId": number,
+  "subcategoryId": number or null
+}`
                     }
                 ],
                 temperature: 0.3,
-                max_tokens: 250
+                max_tokens: 150
             })
         });
 
@@ -95,8 +91,21 @@ export async function predictTransactionCategory(
             if (parsedResponse.subcategoryId !== null && typeof parsedResponse.subcategoryId !== 'number') {
                 throw new Error('Invalid subcategoryId in AI response');
             }
+
+            // Validate that the category exists
+            const category = categories.find(c => c.id === parsedResponse.categoryId);
+            if (!category) {
+                throw new Error('Selected category ID does not exist');
+            }
+
+            // Validate that the subcategory belongs to the selected category
+            if (parsedResponse.subcategoryId !== null) {
+                const subcategory = category.subcategories?.find(s => s.id === parsedResponse.subcategoryId);
+                if (!subcategory) {
+                    throw new Error('Selected subcategory ID does not belong to the selected category');
+                }
+            }
             
-            // Return only what we need
             return {
                 categoryId: parsedResponse.categoryId,
                 subcategoryId: parsedResponse.subcategoryId
