@@ -247,29 +247,16 @@
                 throw new Error('Invalid response from categorization service');
             }
             
-            // Update the first category with the prediction
-            if (selectedCategories.length > 0) {
-                // If we have multiple categories, update just the first one
-                selectedCategories = [
-                    {
-                        categoryId: data.categoryId,
-                        subcategoryId: data.subcategoryId,
-                        amount: selectedCategories[0].amount
-                    },
-                    ...selectedCategories.slice(1)
-                ];
-            } else if (categories.length > 0) {
-                // If no categories are set, create one with the full amount
-                selectedCategories = [{
-                    categoryId: data.categoryId,
-                    subcategoryId: data.subcategoryId,
-                    amount: transactionAmount
-                }];
-            }
-            
+            // Update with the predicted category
+            selectedCategories = [{
+                categoryId: data.categoryId,
+                subcategoryId: data.subcategoryId,
+                amount: transactionAmount
+            }];
+
         } catch (error) {
             console.error('Error in magic categorization:', error);
-            errorMessage = error instanceof Error ? error.message : 'Auto-categorization failed';
+            errorMessage = error instanceof Error ? error.message : 'Failed to auto-categorize transaction';
         } finally {
             isMagicLoading = false;
         }
@@ -381,6 +368,42 @@
             </div>
         {/if}
 
+        <!-- Transaction Details -->
+        {#if transaction}
+            <div class="p-4 sm:px-6 border-b border-gray-200 dark:border-gray-700">
+                <div class="grid grid-cols-2 gap-4">
+                    <!-- Date -->
+                    <div>
+                        <span class="text-xs font-medium text-gray-500 dark:text-gray-400 block mb-1">Date</span>
+                        <span class="text-sm font-medium text-gray-700 dark:text-gray-100">
+                            {new Date(transaction.operation_date).toLocaleDateString()}
+                        </span>
+                    </div>
+                    <!-- Bank -->
+                    <div>
+                        <span class="text-xs font-medium text-gray-500 dark:text-gray-400 block mb-1">Bank</span>
+                        <span class="text-sm font-medium text-gray-700 dark:text-gray-100">
+                            {transaction.account.bank.name}
+                        </span>
+                    </div>
+                    <!-- Account Type -->
+                    <div>
+                        <span class="text-xs font-medium text-gray-500 dark:text-gray-400 block mb-1">Account Type</span>
+                        <span class="text-sm font-medium text-gray-700 dark:text-gray-100">
+                            {transaction.account.account_type.replace('_', ' ').replace("ACCOUNT", "").replace("CARD", "")}
+                        </span>
+                    </div>
+                    <!-- Account Number -->
+                    <div>
+                        <span class="text-xs font-medium text-gray-500 dark:text-gray-400 block mb-1">Account</span>
+                        <span class="text-sm font-medium text-gray-700 dark:text-gray-100">
+                            {transaction.account.account_number}
+                        </span>
+                    </div>
+                </div>
+            </div>
+        {/if}
+
         <!-- Content -->
         <div class="flex-1 overflow-y-auto p-4 sm:p-6">
 
@@ -464,7 +487,7 @@
                         <button
                             type="button"
                             onclick={() => openCategorySelection(index)}
-                            class="flex-1 text-left px-3 py-2 rounded-lg text-sm bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/50 truncate"
+                            class="flex-1 text-left px-3 py-2 rounded-lg text-sm bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/50"
                         >
                             {#if category.categoryId}
                                 {#if category.subcategoryId}
@@ -479,18 +502,17 @@
                         </button>
 
                         <!-- Amount Input -->
-                        <div class="relative w-24 sm:w-32 flex-shrink-0">
+                        <div class="flex items-center gap-1 sm:gap-2">
                             <input
                                 type="number"
                                 step="0.01"
                                 value={Math.abs(category.amount)}
                                 oninput={(e) => updateAmount(index, e.currentTarget.valueAsNumber)}
-                                class="w-full pl-2 pr-8 py-2 text-sm text-right border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                                class="w-16 sm:w-32 pr-2 py-2 text-sm text-right border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
                             />
-                            <span class="absolute right-2 top-1/2 -translate-y-1/2 text-sm text-gray-500 dark:text-gray-400">
-                                €
-                            </span>
+                            <span class="text-sm text-gray-500 dark:text-gray-400">€</span>
                         </div>
+
 
                         <!-- Remove Button -->
                         <button 
